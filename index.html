@@ -56,6 +56,7 @@ body {
   -webkit-text-size-adjust: 100%;
 }
 button { font: inherit; color: inherit; cursor: pointer; }
+[hidden] { display: none !important; }
 :focus-visible { outline: 2px solid var(--bench); outline-offset: 2px; }
 
 /* Header */
@@ -101,6 +102,9 @@ button { font: inherit; color: inherit; cursor: pointer; }
 .pill.strong { background: var(--ink); color: var(--paper); border-color: var(--ink); }
 .pill:disabled { opacity: .55; cursor: default; }
 .leaflet-container { font-family: var(--sans); }
+@media (prefers-color-scheme: dark) {
+  .leaflet-tile-pane { filter: brightness(.78) contrast(1.08) saturate(.85); }
+}
 
 /* Filters and status */
 .filters { display: flex; flex-wrap: wrap; gap: 8px; padding: 14px 20px 6px; }
@@ -180,6 +184,7 @@ button { font: inherit; color: inherit; cursor: pointer; }
 
 .message { padding: 18px 20px; color: var(--ink-2); font-size: 14.5px; }
 .message p { margin: 0 0 12px; max-width: 52ch; }
+.message .detail { font-size: 12.5px; color: var(--ink-3); overflow-wrap: anywhere; }
 .more { display: block; margin: 16px 20px 0; }
 .note { padding: 18px 20px 28px; color: var(--ink-3); font-size: 12.5px; max-width: 60ch; }
 .note a { color: inherit; }
@@ -271,7 +276,7 @@ function buildQuery(c, R = SEARCH_RADIUS) {
   const ll = `${c.lat.toFixed(6)},${c.lon.toFixed(6)}`;
   const a = r => `(around:${r},${ll})`;
   const bb = clipBox(c, R1 + 150).map(v => v.toFixed(6)).join(',');
-  return `[out:json][timeout:90];
+  return `[out:json][timeout:45][maxsize:268435456];
 make section name="spots";out;
 (
   node["amenity"="bench"]${a(R)};
@@ -704,18 +709,19 @@ function measuredRows(s) {
   const PAGE = 20;
   const ENDPOINTS = [
     'https://overpass-api.de/api/interpreter',
+    'https://maps.mail.ru/osm/tools/overpass/api/interpreter',
     'https://overpass.private.coffee/api/interpreter',
-    'https://overpass.kumi.systems/api/interpreter',
   ];
+  const RADII = [SEARCH_RADIUS, 800];   // if the full area fails, try a smaller one
   const reduceMotion = matchMedia('(prefers-reduced-motion: reduce)').matches;
   const wide = matchMedia('(min-width: 900px)');
   const css = name => getComputedStyle(document.documentElement).getPropertyValue(name).trim();
   const colorOf = k => css(k === 'bench' ? '--bench' : k === 'table' ? '--table' : '--toilet');
   const esc = s => String(s).replace(/[&<>"']/g, ch => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[ch]));
-  const radiusText = (SEARCH_RADIUS / 1000) + ' km';
+  const km = r => r >= 1000 ? (r / 1000) + ' km' : r + ' m';
 
   const state = {
-    center: null, place: '', spots: [], shown: PAGE, selected: null, loading: false,
+    center: null, place: '', radius: SEARCH_RADIUS, spots: [], shown: PAGE, selected: null, loading: false,
     filters: { bench: true, table: true, toilet: true },
   };
   let searchToken = 0;
@@ -723,13 +729,9 @@ function measuredRows(s) {
   /* ---------- map ---------- */
   const map = L.map('map', { zoomControl: false, preferCanvas: true }).setView([ZURICH.lat, ZURICH.lon], 15);
   L.control.zoom({ position: 'topright' }).addTo(map);
-  const dark = matchMedia('(prefers-color-scheme: dark)').matches;
-  L.tileLayer(dark
-    ? 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png'
-    : 'https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', {
-    maxZoom: 20,
-    subdomains: 'abcd',
-    attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>',
+  L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
+    maxZoom: 19,
+    attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
   }).addTo(map);
   const markerLayer = L.layerGroup().addTo(map);
   const markers = new Map();
@@ -742,29 +744,46 @@ function measuredRows(s) {
   });
 
   /* ---------- data ---------- */
+  async function post(url, query, ms) {
+    const ctrl = new AbortController();
+    const timer = setTimeout(() => ctrl.abort(), ms);
+    try {
+      const res = await fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: 'data=' + encodeURIComponent(query),
+        signal: ctrl.signal,
+      });
+      if (!res.ok) throw new Error('replied ' + res.status);
+      const json = await res.json();
+      if (json.remark && /error|timed out|memory/i.test(json.remark)) throw new Error('ran out of time');
+      return json;
+    } catch (e) {
+      if (e.name === 'AbortError') throw new Error('no answer in time');
+      if (e instanceof TypeError) throw new Error('refused or busy');
+      throw e;
+    } finally {
+      clearTimeout(timer);
+    }
+  }
+
   async function overpass(query) {
-    let lastErr = new Error('no server answered');
+    const errors = [];
     for (const url of ENDPOINTS) {
-      const ctrl = new AbortController();
-      const timer = setTimeout(() => ctrl.abort(), 75000);
       try {
-        const res = await fetch(url, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-          body: 'data=' + encodeURIComponent(query),
-          signal: ctrl.signal,
-        });
-        if (!res.ok) throw new Error('server replied ' + res.status);
-        const json = await res.json();
-        if (json.remark && /error|timed out|memory/i.test(json.remark)) throw new Error('server ran out of time');
-        return json;
+        return await post(url, query, 50000);
       } catch (e) {
-        lastErr = e.name === 'AbortError' ? new Error('no answer after 75 seconds') : e;
-      } finally {
-        clearTimeout(timer);
+        errors.push(`${new URL(url).host} ${e.message}`);
       }
     }
-    throw lastErr;
+    throw new Error(errors.join(', '));
+  }
+
+  function drawArea(center, radius) {
+    if (areaCircle) areaCircle.remove();
+    areaCircle = L.circle([center.lat, center.lon], {
+      radius, color: css('--ink-3'), weight: 1, dashArray: '3 6', fill: false, interactive: false,
+    }).addTo(map);
   }
 
   async function search(center, place) {
@@ -773,26 +792,45 @@ function measuredRows(s) {
     $('#searchHere').hidden = true;
     markerLayer.clearLayers();
     markers.clear();
-    if (areaCircle) areaCircle.remove();
-    areaCircle = L.circle([center.lat, center.lon], {
-      radius: SEARCH_RADIUS, color: css('--ink-3'), weight: 1, dashArray: '3 6', fill: false, interactive: false,
-    }).addTo(map);
     renderFilters();
-    setStatus(`Loading benches, tables and toilets around ${place}…`);
-    showMessage('<p>Reading OpenStreetMap. Busy areas can take up to 30 seconds.</p>');
-    try {
-      const json = await overpass(buildQuery(center));
-      if (token !== searchToken) return;
-      state.spots = analyse(json, center);
-      state.loading = false;
-      render();
-    } catch (err) {
-      if (token !== searchToken) return;
-      state.loading = false;
-      setStatus('Couldn’t load data from OpenStreetMap.');
-      showMessage(`<p>The data servers didn’t respond (${esc(err.message)}). They’re shared and sometimes busy, so try again in a minute.</p><button class="pill" type="button" id="retry">Try again</button>`);
-      $('#retry').onclick = () => search(center, place);
+    let lastErr = null;
+    for (const radius of RADII) {
+      state.radius = radius;
+      drawArea(center, radius);
+      setStatus(`Loading benches, tables and toilets within ${km(radius)} of ${place}…`);
+      showMessage(radius === RADII[0]
+        ? '<p>Reading OpenStreetMap. Busy areas can take up to 30 seconds.</p>'
+        : '<p>The servers couldn’t handle the full area, so trying a smaller one.</p>');
+      try {
+        const json = await overpass(buildQuery(center, radius));
+        if (token !== searchToken) return;
+        state.spots = analyse(json, center, radius);
+        state.loading = false;
+        render();
+        return;
+      } catch (err) {
+        if (token !== searchToken) return;
+        lastErr = err;
+      }
     }
+
+    // Everything failed. A tiny test query tells "busy" apart from "unreachable".
+    setStatus('Checking whether the data server is reachable…');
+    let reachable = false;
+    try {
+      await post(ENDPOINTS[0], '[out:json][timeout:10];node(1);out ids;', 15000);
+      reachable = true;
+    } catch (e) { /* stays false */ }
+    if (token !== searchToken) return;
+    state.loading = false;
+    const why = reachable
+      ? 'The data server is reachable but couldn’t finish this search, most likely because it’s busy. Try again in a minute.'
+      : location.protocol === 'file:'
+        ? 'The data servers refused the request. The page is open as a local file, which they may reject, so open it through your GitHub Pages link instead.'
+        : 'The data servers couldn’t be reached. They may be overloaded, or this network may block them. Try again in a minute or on another connection.';
+    setStatus('Couldn’t load data from OpenStreetMap.');
+    showMessage(`<p>${why}</p><p class="detail">${esc(lastErr ? lastErr.message : '')}</p><button class="pill" type="button" id="retry">Try again</button>`);
+    $('#retry').onclick = () => search(center, place);
   }
 
   /* ---------- rendering ---------- */
@@ -810,12 +848,12 @@ function measuredRows(s) {
     renderList();
     const v = visible(), total = state.spots.length;
     if (!total) {
-      setStatus(`Nothing mapped within ${radiusText} of ${state.place}.`);
+      setStatus(`Nothing mapped within ${km(state.radius)} of ${state.place}.`);
       showMessage('<p>Move the map somewhere else and tap Search this area.</p>');
     } else if (!v.length) {
       setStatus('No spots match. Turn a filter back on.');
     } else {
-      let text = `${v.length} ${v.length === 1 ? 'spot' : 'spots'} within ${radiusText} of ${state.place}, nearest first.`;
+      let text = `${v.length} ${v.length === 1 ? 'spot' : 'spots'} within ${km(state.radius)} of ${state.place}, nearest first.`;
       if (state.place === 'Zurich centre') text += ' Tap Locate me to search around you.';
       setStatus(text);
     }
