@@ -21,13 +21,14 @@
   --bench: #2F5E43;
   --table: #A0672E;
   --toilet: #2F6496;
+  --like: #C4476A;
+  --gold: #B8860B;
   --warn: #B07A2A;
   --serif: "IBM Plex Serif", Georgia, "Times New Roman", serif;
   --sans: "IBM Plex Sans", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
   color-scheme: light;
   box-sizing: border-box;
   padding-top: env(safe-area-inset-top, 0px);
-  padding-bottom: env(safe-area-inset-bottom, 0px);
 }
 @media (prefers-color-scheme: dark) {
   :root {
@@ -40,14 +41,18 @@
     --bench: #86BB98;
     --table: #D6A36D;
     --toilet: #8AB4DE;
+    --like: #E68AA3;
+    --gold: #E6BC55;
     --warn: #D9A65A;
     color-scheme: dark;
   }
+  .leaflet-tile-pane { filter: brightness(.78) contrast(1.08) saturate(.85); }
 }
 *, *::before, *::after { box-sizing: inherit; }
-html { scroll-padding-top: env(safe-area-inset-top, 0px); }
+html, body { height: 100%; }
 body {
   margin: 0;
+  overflow: hidden;
   background: var(--paper);
   color: var(--ink);
   font-family: var(--sans);
@@ -59,35 +64,18 @@ button { font: inherit; color: inherit; cursor: pointer; }
 [hidden] { display: none !important; }
 :focus-visible { outline: 2px solid var(--bench); outline-offset: 2px; }
 
+.app { position: relative; height: 100%; display: flex; flex-direction: column; }
+
 /* Header */
-.top { padding: 18px 20px 14px; }
-.top h1 {
-  margin: 0;
-  font-family: var(--serif);
-  font-weight: 500;
-  font-size: 28px;
-  line-height: 1.1;
-  letter-spacing: -0.01em;
-}
-.tagline { margin: 6px 0 0; color: var(--ink-2); font-size: 14px; max-width: 44ch; }
+.top { flex: none; padding: 10px 16px 9px; border-bottom: 1px solid var(--line); }
+.top h1 { margin: 0; font-family: var(--serif); font-weight: 500; font-size: 22px; line-height: 1.1; letter-spacing: -0.01em; }
+.tagline { display: none; margin: 6px 0 0; color: var(--ink-2); font-size: 14px; max-width: 44ch; }
 
 /* Map */
-.mapwrap {
-  position: relative;
-  height: 42vh;
-  min-height: 260px;
-  border-top: 1px solid var(--line);
-  border-bottom: 1px solid var(--line);
-}
+.mapwrap { position: relative; flex: 1; min-height: 0; }
 #map { position: absolute; inset: 0; background: var(--line); }
-.mapbtns {
-  position: absolute;
-  z-index: 500;
-  left: 12px;
-  bottom: 12px;
-  display: flex;
-  gap: 8px;
-}
+.leaflet-container { font-family: var(--sans); }
+.mapbtns { position: absolute; z-index: 500; left: 12px; top: 12px; display: flex; flex-wrap: wrap; gap: 8px; }
 .pill {
   font-weight: 500;
   font-size: 14px;
@@ -101,17 +89,35 @@ button { font: inherit; color: inherit; cursor: pointer; }
 }
 .pill.strong { background: var(--ink); color: var(--paper); border-color: var(--ink); }
 .pill:disabled { opacity: .55; cursor: default; }
-.leaflet-container { font-family: var(--sans); }
-@media (prefers-color-scheme: dark) {
-  .leaflet-tile-pane { filter: brightness(.78) contrast(1.08) saturate(.85); }
-}
 
-/* Filters and status */
-.filters { display: flex; flex-wrap: wrap; gap: 8px; padding: 14px 20px 6px; }
-.filter {
+/* Panel: a bottom sheet on phones, a sidebar on wide screens */
+.panel {
+  position: absolute;
+  z-index: 600;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  display: flex;
+  flex-direction: column;
+  max-height: 72%;
+  background: var(--surface);
+  border-radius: 18px 18px 0 0;
+  box-shadow: 0 -4px 18px rgba(0, 0, 0, .14);
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+}
+.panel::before { content: ""; flex: none; width: 36px; height: 4px; margin: 8px auto 0; border-radius: 2px; background: var(--line); }
+.panel-bar { flex: none; display: flex; align-items: center; gap: 12px; padding: 6px 16px 8px; }
+.status { flex: 1; margin: 0; color: var(--ink-2); font-size: 13.5px; }
+.link-btn { flex: none; border: 0; background: none; padding: 8px 2px; font-weight: 600; font-size: 14px; color: var(--bench); }
+.filters { flex: none; display: flex; gap: 8px; overflow-x: auto; padding: 0 16px 12px; scrollbar-width: none; }
+.filters::-webkit-scrollbar { display: none; }
+.sep { flex: none; width: 1px; margin: 4px 2px; background: var(--line); }
+.chip {
+  flex: none;
   display: inline-flex;
   align-items: center;
-  gap: 8px;
+  gap: 7px;
+  white-space: nowrap;
   font-weight: 500;
   font-size: 14px;
   line-height: 1;
@@ -119,30 +125,34 @@ button { font: inherit; color: inherit; cursor: pointer; }
   border-radius: 999px;
   border: 1px solid var(--line);
   background: transparent;
-  color: var(--ink-3);
+  color: var(--ink-2);
 }
-.filter[aria-pressed="true"] { background: var(--surface); color: var(--ink); border-color: var(--ink-3); }
-.filter .dot { width: 9px; height: 9px; border-radius: 50%; background: var(--c); }
-.filter[aria-pressed="false"] .dot { background: transparent; box-shadow: inset 0 0 0 1.5px var(--c); }
-.count { color: var(--ink-3); font-variant-numeric: tabular-nums; font-weight: 400; }
-.status { margin: 0; padding: 6px 20px 12px; color: var(--ink-2); font-size: 13.5px; }
+.chip .dot { width: 9px; height: 9px; border-radius: 50%; background: var(--c); }
+.chip.type[aria-pressed="true"] { background: var(--paper); border-color: var(--ink-3); color: var(--ink); }
+.chip.type[aria-pressed="false"] { color: var(--ink-3); }
+.chip.type[aria-pressed="false"] .dot { background: transparent; box-shadow: inset 0 0 0 1.5px var(--c); }
+.chip.need[aria-pressed="true"] { background: var(--ink); border-color: var(--ink); color: var(--paper); }
+.count { color: var(--ink-3); font-weight: 400; font-variant-numeric: tabular-nums; }
+.panel-body { flex: 1 1 auto; min-height: 0; overflow-y: auto; overscroll-behavior: contain; border-top: 1px solid var(--line); }
+.panel[data-mode="peek"] .panel-body { display: none; }
 
 /* List */
-.list { list-style: none; margin: 0; padding: 0; border-top: 1px solid var(--line); }
+.list { list-style: none; margin: 0; padding: 0; }
 .spot { border-bottom: 1px solid var(--line); }
-.spot.selected { background: var(--surface); }
 .spot-head {
   display: grid;
   grid-template-columns: 10px 1fr auto;
   gap: 0 14px;
   width: 100%;
-  padding: 16px 20px;
+  padding: 15px 16px;
   border: 0;
   background: none;
   text-align: left;
 }
 .spot-head:focus-visible { outline-offset: -2px; }
-.spot-head .dot { margin-top: 8px; width: 10px; height: 10px; border-radius: 50%; background: var(--c); }
+.spot.disliked .spot-head { opacity: .55; }
+.dot { display: inline-block; width: 10px; height: 10px; border-radius: 50%; background: var(--c); }
+.spot-head .dot { margin-top: 8px; }
 .spot-body { display: block; min-width: 0; }
 .sentence { display: block; font-family: var(--serif); font-size: 17.5px; line-height: 1.4; color: var(--ink); }
 .comfort { display: block; margin-top: 3px; font-size: 14px; color: var(--ink-2); }
@@ -161,11 +171,41 @@ button { font: inherit; color: inherit; cursor: pointer; }
   background: var(--warn);
   vertical-align: 2px;
 }
-.dist { padding-top: 3px; font-size: 14px; color: var(--ink-2); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.dist { padding-top: 3px; font-size: 14px; color: var(--ink-2); font-variant-numeric: tabular-nums; white-space: nowrap; text-align: right; }
+.liked { display: block; margin-top: 4px; color: var(--like); font-size: 12.5px; font-weight: 500; }
+.more { display: block; margin: 14px 16px 4px; }
+.note { margin: 0; padding: 14px 16px 20px; color: var(--ink-3); font-size: 12.5px; max-width: 60ch; }
+.note a { color: inherit; }
+.message { padding: 16px; color: var(--ink-2); font-size: 14.5px; }
+.message p { margin: 0 0 12px; max-width: 52ch; }
+.message .detail-line { font-size: 12.5px; color: var(--ink-3); overflow-wrap: anywhere; }
 
-.spot-more { padding: 0 20px 18px 44px; }
-.actions { display: flex; flex-wrap: wrap; gap: 8px; }
-.actions a, .actions button {
+/* Detail */
+.detail { padding: 4px 16px 20px; }
+.detail-nav { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.detail-nav .dist { padding: 0; }
+.kind { display: flex; align-items: center; gap: 8px; margin: 8px 0 4px; font-size: 13.5px; color: var(--ink-2); }
+.sentence.big { font-size: 21px; line-height: 1.35; }
+.votes { display: flex; gap: 8px; margin-top: 18px; }
+.vote {
+  flex: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 12px;
+  border-radius: 12px;
+  border: 1px solid var(--line);
+  background: var(--paper);
+  font-weight: 500;
+}
+.vote svg { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+.vote.like[aria-pressed="true"] { background: var(--like); border-color: var(--like); color: var(--paper); }
+.vote.like[aria-pressed="true"] svg { fill: currentColor; }
+.vote.dislike[aria-pressed="true"] { background: var(--ink-2); border-color: var(--ink-2); color: var(--paper); }
+.fine { margin: 8px 0 0; font-size: 12.5px; color: var(--ink-3); }
+.actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 18px; }
+.actions a {
   font-weight: 500;
   font-size: 14px;
   line-height: 1;
@@ -177,30 +217,96 @@ button { font: inherit; color: inherit; cursor: pointer; }
   text-decoration: none;
 }
 .actions .go { background: var(--bench); border-color: var(--bench); color: var(--paper); }
-.measured-title { margin: 16px 0 6px; font-size: 13px; color: var(--ink-3); }
-.measured { display: grid; grid-template-columns: max-content 1fr; gap: 3px 16px; margin: 0; font-size: 13px; }
+.measured-box { margin-top: 18px; }
+.measured-box summary { cursor: pointer; padding: 6px 0; font-size: 13.5px; color: var(--ink-2); }
+.measured { display: grid; grid-template-columns: max-content 1fr; gap: 3px 16px; margin: 6px 0 0; font-size: 13px; }
 .measured dt { color: var(--ink-3); }
 .measured dd { margin: 0; color: var(--ink-2); font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
 
-.message { padding: 18px 20px; color: var(--ink-2); font-size: 14.5px; }
-.message p { margin: 0 0 12px; max-width: 52ch; }
-.message .detail { font-size: 12.5px; color: var(--ink-3); overflow-wrap: anywhere; }
-.more { display: block; margin: 16px 20px 0; }
-.note { padding: 18px 20px 28px; color: var(--ink-3); font-size: 12.5px; max-width: 60ch; }
-.note a { color: inherit; }
+/* Check-in and raccoon */
+.tag { display: block; margin-top: 4px; font-size: 12.5px; color: var(--ink-3); }
+.vote:disabled { opacity: .45; cursor: default; }
+.checkin { margin-top: 18px; padding: 14px; border-radius: 14px; background: var(--paper); border: 1px solid var(--line); }
+.checkin.rare { border-color: var(--gold); }
+.ck-lead { margin: 0; font-size: 14.5px; color: var(--ink); }
+.ck-emoji { font-size: 20px; vertical-align: -2px; margin-right: 4px; }
+.ck-btn {
+  margin-top: 10px;
+  width: 100%;
+  padding: 13px;
+  border: 0;
+  border-radius: 12px;
+  background: var(--ink);
+  color: var(--paper);
+  font-weight: 600;
+  font-size: 15px;
+}
+.ck-btn:disabled { opacity: .6; cursor: default; }
+.ck-msg { margin: 8px 0 0; font-size: 13px; color: var(--ink-2); }
+.reveal { display: flex; align-items: center; gap: 14px; }
+.reveal .snack {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 64px;
+  height: 64px;
+  border-radius: 50%;
+  background: var(--surface);
+  font-size: 36px;
+  line-height: 1;
+  animation: pop .5s ease-out both;
+}
+.checkin.rare .reveal .snack { background: radial-gradient(circle, #FFF1C2 0%, #F2C94C 70%, var(--gold) 100%); }
+.reveal-text strong { display: block; font-family: var(--serif); font-weight: 500; font-size: 18px; line-height: 1.3; }
+.reveal-text span { display: block; margin-top: 2px; font-size: 13.5px; color: var(--ink-2); }
+@keyframes pop {
+  from { transform: scale(.4); opacity: 0; }
+  70% { transform: scale(1.12); opacity: 1; }
+  to { transform: scale(1); }
+}
+@media (prefers-reduced-motion: reduce) { .reveal .snack { animation: none; } }
+.raccoon-art { display: flex; justify-content: center; margin: 2px 0 4px; }
+.raccoon-art svg { width: 200px; height: auto; }
+.rc-head { display: flex; align-items: baseline; justify-content: center; gap: 10px; }
+.rc-name { margin: 0; font-family: var(--serif); font-weight: 500; font-size: 24px; }
+.rc-line { margin: 4px auto 0; max-width: 40ch; text-align: center; color: var(--ink); font-size: 14.5px; }
+.rc-line.quiet { color: var(--ink-2); font-size: 13.5px; }
+.rc-section { margin: 22px 0 4px; font-size: 13.5px; font-weight: 600; color: var(--ink-2); }
+.log { list-style: none; margin: 0 0 12px; padding: 0; }
+.log li { display: grid; grid-template-columns: 32px 1fr auto; gap: 10px; align-items: center; padding: 9px 0; border-bottom: 1px solid var(--line); }
+.log .em { font-size: 24px; text-align: center; }
+.log .what { font-size: 14px; min-width: 0; }
+.log .where { display: block; font-size: 12.5px; color: var(--ink-3); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.log .val { font-size: 13.5px; text-align: right; font-variant-numeric: tabular-nums; }
+.log .val small { display: block; font-size: 12px; color: var(--ink-3); }
+.log li.rare .what { color: var(--gold); font-weight: 600; }
 
-/* Wide screens: list on the left, map fills the rest */
+/* Wide screens: sidebar on the left, map fills the rest */
 @media (min-width: 900px) {
-  html, body { height: 100%; }
-  .app {
-    display: grid;
-    grid-template-columns: 440px 1fr;
-    grid-template-rows: auto 1fr;
-    height: 100%;
+  .app { display: grid; grid-template-columns: 440px 1fr; grid-template-rows: auto 1fr; }
+  .top { grid-column: 1; grid-row: 1; padding: 18px 20px 14px; border-right: 1px solid var(--line); }
+  .top h1 { font-size: 28px; }
+  .tagline { display: block; }
+  .mapwrap { grid-column: 2; grid-row: 1 / span 2; }
+  .panel {
+    position: static;
+    grid-column: 1;
+    grid-row: 2;
+    min-height: 0;
+    max-height: none;
+    border-radius: 0;
+    box-shadow: none;
+    border-right: 1px solid var(--line);
+    padding-bottom: 0;
   }
-  .top { grid-column: 1; grid-row: 1; border-right: 1px solid var(--line); }
-  .listpane { grid-column: 1; grid-row: 2; overflow-y: auto; border-right: 1px solid var(--line); }
-  .mapwrap { grid-column: 2; grid-row: 1 / span 2; height: auto; border: 0; }
+  .panel::before { display: none; }
+  .panel-bar { padding: 12px 20px 8px; }
+  #panelToggle { display: none; }
+  .filters { flex-wrap: wrap; overflow: visible; padding: 0 20px 12px; }
+  .panel[data-mode="peek"] .panel-body { display: block; }
+  .spot-head { padding: 16px 20px; }
+  .detail { padding: 8px 20px 24px; }
+  .message { padding: 18px 20px; }
 }
 </style>
 </head>
@@ -208,28 +314,35 @@ button { font: inherit; color: inherit; cursor: pointer; }
 <div class="app">
   <header class="top">
     <h1>Pause</h1>
-    <p class="tagline">Benches, picnic tables and toilets nearby, described by what's around them.</p>
+    <p class="tagline">Benches, picnic tables and toilets, described by what's around them.</p>
   </header>
 
   <div class="mapwrap">
-    <div id="map" role="region" aria-label="Map of nearby spots"></div>
+    <div id="map" role="region" aria-label="Map of benches, picnic tables and toilets"></div>
     <div class="mapbtns">
       <button id="locate" class="pill" type="button">Locate me</button>
+      <button id="raccoonBtn" class="pill" type="button" aria-label="Your raccoon and its snacks"><span aria-hidden="true">🦝</span> <span id="snackCount">0</span></button>
       <button id="searchHere" class="pill strong" type="button" hidden>Search this area</button>
     </div>
   </div>
 
-  <section class="listpane" aria-label="Spots">
-    <div class="filters" role="group" aria-label="Show">
-      <button class="filter" type="button" data-kind="bench" aria-pressed="true" style="--c: var(--bench)"><span class="dot" aria-hidden="true"></span>Benches <span class="count"></span></button>
-      <button class="filter" type="button" data-kind="table" aria-pressed="true" style="--c: var(--table)"><span class="dot" aria-hidden="true"></span>Picnic tables <span class="count"></span></button>
-      <button class="filter" type="button" data-kind="toilet" aria-pressed="true" style="--c: var(--toilet)"><span class="dot" aria-hidden="true"></span>Toilets <span class="count"></span></button>
+  <aside id="panel" class="panel" data-mode="peek" aria-label="Spots">
+    <div class="panel-bar">
+      <p id="status" class="status" aria-live="polite"></p>
+      <button id="panelToggle" class="link-btn" type="button">Show list</button>
     </div>
-    <p id="status" class="status" aria-live="polite"></p>
-    <ul id="list" class="list"></ul>
-    <button id="more" class="pill more" type="button" hidden>Show more</button>
-    <p class="note">Descriptions are estimated from OpenStreetMap data, so something missing from the map may still exist in real life. Map data © <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap contributors</a>.</p>
-  </section>
+    <div class="filters" role="group" aria-label="Filters">
+      <button class="chip type" type="button" data-type="bench" aria-pressed="true" style="--c: var(--bench)"><span class="dot" aria-hidden="true"></span>Benches <span class="count"></span></button>
+      <button class="chip type" type="button" data-type="table" aria-pressed="true" style="--c: var(--table)"><span class="dot" aria-hidden="true"></span>Picnic tables <span class="count"></span></button>
+      <button class="chip type" type="button" data-type="toilet" aria-pressed="true" style="--c: var(--toilet)"><span class="dot" aria-hidden="true"></span>Toilets <span class="count"></span></button>
+      <span class="sep" aria-hidden="true"></span>
+      <button class="chip need" type="button" data-need="liked" aria-pressed="false">Liked</button>
+      <button class="chip need" type="button" data-need="water" aria-pressed="false">By water</button>
+      <button class="chip need" type="button" data-need="green" aria-pressed="false">Park or woods</button>
+      <button class="chip need" type="button" data-need="quiet" aria-pressed="false">Away from traffic</button>
+    </div>
+    <div id="panelBody" class="panel-body"></div>
+  </aside>
 </div>
 
 <script id="core">
@@ -242,6 +355,8 @@ button { font: inherit; color: inherit; cursor: pointer; }
 const RULES = {
   lake: 40,           // "lakeside"
   river: 30,          // "riverside"
+  stream: 20,         // "by a stream"
+  promenade: 15,      // "on a promenade" (named footpath or pedestrian street)
   pond: 40,           // "by a pond" / "by the water"
   forestEdge: 20,     // "at the forest edge"
   view: 50,           // "with a view" (mapped viewpoint)
@@ -309,9 +424,10 @@ out skel qt;
 make section name="lines";out;
 (
   way["highway"~"^(motorway|trunk|primary|secondary)(_link)?$"]["tunnel"!~"^(yes|building_passage)$"]${a(R1)};
+  way["highway"~"^(pedestrian|footway|path)$"]["name"]["footway"!~"^(sidewalk|crossing|traffic_island)$"]["tunnel"!="yes"]${a(R1)};
   way["railway"~"^(rail|light_rail|narrow_gauge)$"]["tunnel"!="yes"]${a(R1)};
   way["railway"="tram"]["tunnel"!="yes"]${a(R1)};
-  way["waterway"~"^(river|canal)$"]["tunnel"!~"^(yes|culvert)$"]${a(R1)};
+  way["waterway"~"^(river|canal|stream)$"]["tunnel"!~"^(yes|culvert)$"]${a(R1)};
   way["natural"="tree_row"]${a(R1)};
   way["natural"="water"]${a(R1)};
   relation["natural"="water"]${a(R1)};
@@ -499,13 +615,15 @@ function analyse(json, center, R = SEARCH_RADIUS) {
   for (const el of sec.trees) if (el.lat != null) gridAdd(trees, ...proj(el.lat, el.lon));
   for (const el of sec.bins) if (el.lat != null) gridAdd(bins, ...proj(el.lat, el.lon));
 
-  const Lf = { road: [], rail: [], tram: [], river: [], lake: [], pond: [], water: [], treerow: [] };
+  const Lf = { road: [], promenade: [], rail: [], tram: [], river: [], stream: [], lake: [], pond: [], water: [], treerow: [] };
   for (const el of sec.lines) {
     const t = el.tags || {};
     let b = null;
-    if (t.highway) b = 'road';
+    if (/^(pedestrian|footway|path)$/.test(t.highway || '')) b = 'promenade';
+    else if (t.highway) b = 'road';
     else if (t.railway === 'tram') b = 'tram';
     else if (t.railway) b = 'rail';
+    else if (t.waterway === 'stream') b = 'stream';
     else if (t.waterway) b = 'river';
     else if (t.natural === 'tree_row') b = 'treerow';
     else if (t.natural === 'water') b = waterKind(t);
@@ -542,6 +660,7 @@ function analyse(json, center, R = SEARCH_RADIUS) {
     const spot = { id, osmType: el.type, osmId: el.id, kind, lat: c[0], lon: c[1], dist, tags: t };
     spot.m = measure(x, y, id, D);
     spot.text = describe(spot);
+    spot.flags = flagsOf(spot.m);
     spots.push(spot);
   }
   spots.sort((a, b) => a.dist - b.dist);
@@ -554,6 +673,8 @@ function measure(x, y, key, D) {
   const m = {};
   m.lake = line(D.Lf.lake);
   m.river = line(D.Lf.river);
+  m.stream = line(D.Lf.stream);
+  m.promenade = line(D.Lf.promenade);
   m.pond = line(D.Lf.pond);
   m.water = line(D.Lf.water);
   m.inPark = D.A.park.some(f => inside(f, x, y));
@@ -625,8 +746,10 @@ function describe(s) {
   const head = [lakeside ? 'lakeside' : riverside ? 'riverside' : '', MATERIAL[t.material] || '', noun].filter(Boolean).join(' ');
   const tail = [];
   if (where) tail.push(where);
+  if (m.promenade <= R.promenade) tail.push('on a promenade');
   if (!lakeside && !riverside) {
-    if (m.pond <= R.pond) tail.push('by a pond');
+    if (m.stream <= R.stream) tail.push('by a stream');
+    else if (m.pond <= R.pond) tail.push('by a pond');
     else if (m.water <= R.pond) tail.push('by the water');
   }
   if (m.view <= R.view) tail.push('with a view');
@@ -659,6 +782,16 @@ function describe(s) {
   };
 }
 
+// Yes/no features used by the filters.
+function flagsOf(m) {
+  const R = RULES;
+  return {
+    water: m.lake <= R.lake || m.river <= R.river || m.stream <= R.stream || m.pond <= R.pond || m.water <= R.pond,
+    green: m.inPark || m.inGarden || m.inForest || m.forestEdge <= R.forestEdge,
+    quiet: !(m.road <= R.busyRoad || m.rail <= R.railway || m.tram <= R.tram || m.stop <= R.stop),
+  };
+}
+
 function fmtDist(d) {
   if (!isFinite(d)) return 'none nearby';
   if (d < 5) return 'under 5 m';
@@ -674,9 +807,11 @@ function measuredRows(s) {
   const rows = [
     ['Lake', d(m.lake)],
     ['River', d(m.river)],
+    ['Stream', d(m.stream)],
     ['Pond or other water', d(Math.min(m.pond, m.water))],
     ['Inside', inside.length ? inside.join(', ') : 'no park, garden, cemetery or woods'],
     ['Forest edge', d(m.forestEdge)],
+    ['Named footpath', d(m.promenade)],
     ['Viewpoint', d(m.view)],
     [`Trees within ${RULES.shadeRadius} m`, String(m.trees)],
     ['Tree row', d(m.treeRow)],
@@ -698,6 +833,158 @@ function measuredRows(s) {
 }
 </script>
 
+<script id="game">
+/* ============================================================
+   Game: a hungry raccoon fed with snacks found at benches.
+   Pure functions only, so it can be tested on its own.
+   ============================================================ */
+
+const GAME = {
+  checkinRadius: 40,          // metres from the bench
+  accuracySlack: 25,          // extra metres allowed for GPS error
+  maxAccuracy: 75,            // location fixes worse than this are refused
+  rareOneIn: 30,              // about 1 in 30 snacks is golden
+  rareValue: 5,               // a golden snack counts as 5
+  firstVisitBonus: 1,         // first visit to a bench: one extra snack
+  requireCheckinToVote: true, // votes unlock with a check-in...
+  voteWindowHours: 24,        // ...and stay open this long
+};
+
+const SNACKS = [
+  ['🍎', 'apple'], ['🥨', 'pretzel'], ['🥪', 'sandwich'], ['🍌', 'banana'],
+  ['🧀', 'piece of cheese'], ['🥐', 'croissant'], ['🍪', 'cookie'], ['🍇', 'bunch of grapes'],
+  ['🥕', 'carrot'], ['🍐', 'pear'], ['🥜', 'handful of peanuts'], ['🍓', 'few strawberries'],
+];
+
+const STAGES = [
+  { at: 0, label: 'Scrawny', scale: 0.82 },
+  { at: 5, label: 'Lean', scale: 0.95 },
+  { at: 20, label: 'Well fed', scale: 1.08 },
+  { at: 50, label: 'Round', scale: 1.22 },
+  { at: 100, label: 'Magnificently round', scale: 1.36 },
+];
+
+// Small, fast string hash (FNV-1a). Same input, same number, on every phone.
+function hash32(s) {
+  let h = 0x811c9dc5;
+  for (let i = 0; i < s.length; i++) {
+    h ^= s.charCodeAt(i);
+    h = Math.imul(h, 0x01000193);
+  }
+  return h >>> 0;
+}
+function dayKey(d) {
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+}
+// Today's snack at a bench is the same for everyone, without asking a server.
+function snackFor(benchId, day) {
+  const [emoji, name] = SNACKS[hash32(benchId + '|' + day) % SNACKS.length];
+  const rare = hash32('rare|' + day + '|' + benchId) % GAME.rareOneIn === 0;
+  return { emoji, name, rare };
+}
+function newGame() {
+  return { name: '', total: 0, rares: 0, lastFed: 0, visits: {}, log: [] };
+}
+function applyCheckin(game, spot, now) {
+  const day = dayKey(new Date(now));
+  const prev = game.visits[spot.id];
+  const snack = snackFor(spot.id, day);
+  if (prev && prev.last === day) return { already: true, snack };
+  const first = !prev;
+  const value = (snack.rare ? GAME.rareValue : 1) + (first ? GAME.firstVisitBonus : 0);
+  game.visits[spot.id] = { first: prev ? prev.first : now, last: day, lastTs: now, count: (prev ? prev.count : 0) + 1 };
+  game.total += value;
+  if (snack.rare) game.rares += 1;
+  game.lastFed = now;
+  game.log.unshift({
+    t: now, id: spot.id, emoji: snack.emoji, name: snack.name, rare: snack.rare, value, first,
+    where: (spot.text && spot.text.sentence) || '',
+  });
+  game.log = game.log.slice(0, 50);
+  return { already: false, snack, first, value };
+}
+function takenToday(game, id, now) {
+  const v = game.visits[id];
+  return !!v && v.last === dayKey(new Date(now));
+}
+function canVote(game, id, now) {
+  if (!GAME.requireCheckinToVote) return true;
+  const v = game.visits[id];
+  return !!v && now - v.lastTs <= GAME.voteWindowHours * 3600 * 1000;
+}
+function stageOf(total) {
+  let i = 0;
+  while (i + 1 < STAGES.length && total >= STAGES[i + 1].at) i++;
+  const next = STAGES[i + 1] || null;
+  return { ...STAGES[i], next, toNext: next ? next.at - total : 0 };
+}
+function moodOf(game, now) {
+  if (!game.lastFed) return { key: 'hungry', label: 'Hungry and waiting for its first snack' };
+  const day = t => new Date(t).setHours(0, 0, 0, 0);
+  const days = Math.round((day(now) - day(game.lastFed)) / 86400000);
+  if (days <= 0) return { key: 'happy', label: 'Full and happy' };
+  if (days <= 2) return { key: 'content', label: 'Content' };
+  if (days <= 6) return { key: 'peckish', label: 'Getting peckish' };
+  return { key: 'hungry', label: `Hungry, last fed ${days} days ago` };
+}
+
+// An original raccoon. Its belly grows with the stage; its face follows its mood.
+function raccoonSVG(scale, mood, holding) {
+  const fur = '#9C968F', dark = '#2E2A28', light = '#F2EEE7', belly = '#E4DED5', band = '#5F5A55', paw = '#3A3633';
+  const bx = 110, rx = 50 * scale, ry = 38 + (scale - 1) * 14;
+  const tail = [[183, 95, 1], [179, 108, 0], [173, 121, 1], [165, 133, 0], [156, 145, 1], [146, 156, 0]]
+    .map(([x, y, d]) => `<ellipse cx="${x}" cy="${y}" rx="15" ry="13" transform="rotate(-55 ${x} ${y})" fill="${d ? band : '#B3ADA6'}"/>`).join('');
+  let eyes, mouth;
+  if (mood === 'happy') {
+    eyes = `<path d="M81 80 q7 -7 14 0 M125 80 q7 -7 14 0" stroke="${light}" stroke-width="3" fill="none" stroke-linecap="round"/>`;
+    mouth = `<path d="M100 101 q10 9 20 0" stroke="${dark}" stroke-width="2.5" fill="none" stroke-linecap="round"/>`;
+  } else if (mood === 'hungry') {
+    eyes = `<circle cx="88" cy="78" r="7" fill="${light}"/><circle cx="132" cy="78" r="7" fill="${light}"/>
+      <circle cx="88" cy="76" r="4.2" fill="#1F1C1A"/><circle cx="132" cy="76" r="4.2" fill="#1F1C1A"/>
+      <circle cx="89.5" cy="74.5" r="1.4" fill="#fff"/><circle cx="133.5" cy="74.5" r="1.4" fill="#fff"/>`;
+    mouth = `<ellipse cx="110" cy="104" rx="3.5" ry="4" fill="${dark}"/>`;
+  } else {
+    eyes = `<circle cx="88" cy="78" r="5.5" fill="${light}"/><circle cx="132" cy="78" r="5.5" fill="${light}"/>
+      <circle cx="88" cy="78.5" r="3.2" fill="#1F1C1A"/><circle cx="132" cy="78.5" r="3.2" fill="#1F1C1A"/>
+      <circle cx="89.2" cy="77.3" r="1.1" fill="#fff"/><circle cx="133.2" cy="77.3" r="1.1" fill="#fff"/>`;
+    if (mood === 'peckish') {
+      eyes += `<path d="M81 72 l12 3 M139 72 l-12 3" stroke="${light}" stroke-width="2.2" stroke-linecap="round"/>`;
+      mouth = `<path d="M103 102 h14" stroke="${dark}" stroke-width="2.5" stroke-linecap="round"/>`;
+    } else {
+      mouth = `<path d="M103 101 q7 5 14 0" stroke="${dark}" stroke-width="2.5" fill="none" stroke-linecap="round"/>`;
+    }
+  }
+  const snack = holding ? `<text x="${bx}" y="150" font-size="26" text-anchor="middle" dominant-baseline="middle">${holding}</text>` : '';
+  return `<svg viewBox="0 0 220 200" role="img" aria-label="Your raccoon, ${mood}">
+    ${tail}
+    <ellipse cx="${bx - 28 * scale}" cy="184" rx="13" ry="7" fill="${paw}"/>
+    <ellipse cx="${bx + 28 * scale}" cy="184" rx="13" ry="7" fill="${paw}"/>
+    <ellipse cx="${bx}" cy="146" rx="${rx}" ry="${ry}" fill="${fur}"/>
+    <ellipse cx="${bx}" cy="153" rx="${31 * scale}" ry="${26 + (scale - 1) * 10}" fill="${belly}"/>
+    ${snack}
+    <ellipse cx="${bx - 24 * scale}" cy="146" rx="7" ry="11" transform="rotate(-25 ${bx - 24 * scale} 146)" fill="${paw}"/>
+    <ellipse cx="${bx + 24 * scale}" cy="146" rx="7" ry="11" transform="rotate(25 ${bx + 24 * scale} 146)" fill="${paw}"/>
+    <ellipse cx="79" cy="45" rx="13" ry="17" transform="rotate(-25 79 45)" fill="${fur}"/>
+    <ellipse cx="79" cy="47" rx="7" ry="10" transform="rotate(-25 79 47)" fill="${paw}"/>
+    <ellipse cx="141" cy="45" rx="13" ry="17" transform="rotate(25 141 45)" fill="${fur}"/>
+    <ellipse cx="141" cy="47" rx="7" ry="10" transform="rotate(25 141 47)" fill="${paw}"/>
+    <ellipse cx="110" cy="82" rx="46" ry="38" fill="${fur}"/>
+    <ellipse cx="70" cy="96" rx="12" ry="10" fill="#B3ADA6"/>
+    <ellipse cx="150" cy="96" rx="12" ry="10" fill="#B3ADA6"/>
+    <ellipse cx="90" cy="63" rx="14" ry="7" fill="${light}"/>
+    <ellipse cx="130" cy="63" rx="14" ry="7" fill="${light}"/>
+    <ellipse cx="110" cy="58" rx="6" ry="14" fill="${band}"/>
+    <ellipse cx="88" cy="79" rx="19" ry="12" fill="${dark}"/>
+    <ellipse cx="132" cy="79" rx="19" ry="12" fill="${dark}"/>
+    <ellipse cx="110" cy="78" rx="10" ry="8" fill="${dark}"/>
+    <ellipse cx="110" cy="97" rx="20" ry="14" fill="${light}"/>
+    <ellipse cx="110" cy="90" rx="6" ry="4.5" fill="${dark}"/>
+    ${eyes}
+    ${mouth}
+  </svg>`;
+}
+</script>
+
 <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
 <script>
 /* ============================================================
@@ -713,6 +1000,13 @@ function measuredRows(s) {
     'https://overpass.private.coffee/api/interpreter',
   ];
   const RADII = [SEARCH_RADIUS, 800];   // if the full area fails, try a smaller one
+  const VOTES_KEY = 'pause.votes.v1';
+  const GAME_KEY = 'pause.raccoon.v1';
+  const TEST = new URLSearchParams(location.search).has('test');   // open with ?test to check in without being there
+  const KIND_LABEL = { bench: 'Bench', table: 'Picnic table', toilet: 'Toilet' };
+  const ICON_LIKE = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg>';
+  const ICON_DISLIKE = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M10 15v4a3 3 0 0 0 3 3l4-9V2H5.72a2 2 0 0 0-2 1.7l-1.38 9a2 2 0 0 0 2 2.3zm7-13h2.67A2.31 2.31 0 0 1 22 4v7a2.31 2.31 0 0 1-2.33 2H17"/></svg>';
+
   const reduceMotion = matchMedia('(prefers-reduced-motion: reduce)').matches;
   const wide = matchMedia('(min-width: 900px)');
   const css = name => getComputedStyle(document.documentElement).getPropertyValue(name).trim();
@@ -721,26 +1015,64 @@ function measuredRows(s) {
   const km = r => r >= 1000 ? (r / 1000) + ' km' : r + ' m';
 
   const state = {
-    center: null, place: '', radius: SEARCH_RADIUS, spots: [], shown: PAGE, selected: null, loading: false,
-    filters: { bench: true, table: true, toilet: true },
+    phase: 'idle',          // idle | locating | loading | ready | error
+    center: null, place: '', radius: SEARCH_RADIUS,
+    spots: [], shown: PAGE, selected: null,
+    mode: 'peek',           // peek | list | detail | raccoon
+    ckMsg: '', checking: false, reveal: null,
+    error: '',
+    types: { bench: true, table: true, toilet: true },
+    need: { liked: false, water: false, green: false, quiet: false },
   };
   let searchToken = 0;
 
+  /* ---------- votes (stored on this device for now) ---------- */
+  let votes = {};
+  try { votes = JSON.parse(localStorage.getItem(VOTES_KEY)) || {}; } catch (e) { votes = {}; }
+  const myVote = id => (votes[id] && votes[id].v) || 0;
+  function castVote(s, v) {
+    if (myVote(s.id) === v) delete votes[s.id];
+    else votes[s.id] = { v, t: Date.now(), lat: +s.lat.toFixed(6), lon: +s.lon.toFixed(6), kind: s.kind };
+    try { localStorage.setItem(VOTES_KEY, JSON.stringify(votes)); } catch (e) { /* private mode: votes last for this visit */ }
+  }
+
+  /* ---------- raccoon (stored on this device for now) ---------- */
+  let game = newGame();
+  try { game = Object.assign(newGame(), JSON.parse(localStorage.getItem(GAME_KEY)) || {}); } catch (e) { game = newGame(); }
+  function saveGame() {
+    try { localStorage.setItem(GAME_KEY, JSON.stringify(game)); } catch (e) { /* private mode: progress lasts for this visit */ }
+  }
+  function updateRaccoonButton() {
+    $('#snackCount').textContent = game.total;
+  }
+  function metres(lat1, lon1, lat2, lon2) {
+    const k = Math.PI / 180, x = (lon2 - lon1) * k * Math.cos((lat1 + lat2) / 2 * k), y = (lat2 - lat1) * k;
+    return Math.hypot(x, y) * 6371000;
+  }
+
   /* ---------- map ---------- */
-  const map = L.map('map', { zoomControl: false, preferCanvas: true }).setView([ZURICH.lat, ZURICH.lon], 15);
-  L.control.zoom({ position: 'topright' }).addTo(map);
+  const map = L.map('map', { zoomControl: false, attributionControl: false, preferCanvas: true })
+    .setView([ZURICH.lat, ZURICH.lon], 15);
+  if (wide.matches) L.control.zoom({ position: 'topright' }).addTo(map);
+  L.control.attribution({ position: 'topright' }).addTo(map);
   L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
     maxZoom: 19,
     attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
   }).addTo(map);
   const markerLayer = L.layerGroup().addTo(map);
-  const markers = new Map();
   let areaCircle = null, userMarker = null;
 
   map.on('moveend', () => {
-    if (!state.center || state.loading) return;
+    if (!state.center || state.phase === 'loading') return;
     const c = map.getCenter();
     $('#searchHere').hidden = map.distance(c, [state.center.lat, state.center.lon]) < 300;
+  });
+  map.on('click', () => {
+    if (state.mode !== 'peek') {
+      state.selected = null;
+      setMode('peek');
+      renderMarkers();
+    }
   });
 
   /* ---------- data ---------- */
@@ -788,24 +1120,20 @@ function measuredRows(s) {
 
   async function search(center, place) {
     const token = ++searchToken;
-    Object.assign(state, { center, place, spots: [], shown: PAGE, selected: null, loading: true });
+    Object.assign(state, { phase: 'loading', center, place, spots: [], shown: PAGE, selected: null, error: '' });
+    if (state.mode === 'detail') state.mode = 'peek';
     $('#searchHere').hidden = true;
     markerLayer.clearLayers();
-    markers.clear();
-    renderFilters();
     let lastErr = null;
     for (const radius of RADII) {
       state.radius = radius;
       drawArea(center, radius);
-      setStatus(`Loading benches, tables and toilets within ${km(radius)} of ${place}…`);
-      showMessage(radius === RADII[0]
-        ? '<p>Reading OpenStreetMap. Busy areas can take up to 30 seconds.</p>'
-        : '<p>The servers couldn’t handle the full area, so trying a smaller one.</p>');
+      render();
       try {
         const json = await overpass(buildQuery(center, radius));
         if (token !== searchToken) return;
         state.spots = analyse(json, center, radius);
-        state.loading = false;
+        state.phase = 'ready';
         render();
         return;
       } catch (err) {
@@ -815,79 +1143,121 @@ function measuredRows(s) {
     }
 
     // Everything failed. A tiny test query tells "busy" apart from "unreachable".
-    setStatus('Checking whether the data server is reachable…');
     let reachable = false;
     try {
       await post(ENDPOINTS[0], '[out:json][timeout:10];node(1);out ids;', 15000);
       reachable = true;
     } catch (e) { /* stays false */ }
     if (token !== searchToken) return;
-    state.loading = false;
     const why = reachable
       ? 'The data server is reachable but couldn’t finish this search, most likely because it’s busy. Try again in a minute.'
       : location.protocol === 'file:'
         ? 'The data servers refused the request. The page is open as a local file, which they may reject, so open it through your GitHub Pages link instead.'
         : 'The data servers couldn’t be reached. They may be overloaded, or this network may block them. Try again in a minute or on another connection.';
-    setStatus('Couldn’t load data from OpenStreetMap.');
-    showMessage(`<p>${why}</p><p class="detail">${esc(lastErr ? lastErr.message : '')}</p><button class="pill" type="button" id="retry">Try again</button>`);
-    $('#retry').onclick = () => search(center, place);
+    state.phase = 'error';
+    state.error = `<p>${why}</p><p class="detail-line">${esc(lastErr ? lastErr.message : '')}</p>`;
+    if (!wide.matches) state.mode = 'list';
+    render();
   }
+
+  /* ---------- filtering ---------- */
+  function passes(s) {
+    if (!state.types[s.kind]) return false;
+    const n = state.need;
+    if (n.liked && myVote(s.id) !== 1) return false;
+    if (n.water && !s.flags.water) return false;
+    if (n.green && !s.flags.green) return false;
+    if (n.quiet && !s.flags.quiet) return false;
+    return true;
+  }
+  const visible = () => state.spots.filter(passes);
+  const selectedSpot = () => state.spots.find(s => s.id === state.selected) || null;
 
   /* ---------- rendering ---------- */
-  const visible = () => state.spots.filter(s => state.filters[s.kind]);
-
-  function setStatus(text) { $('#status').textContent = text; }
-  function showMessage(html) {
-    $('#list').innerHTML = `<li class="message">${html}</li>`;
-    $('#more').hidden = true;
-  }
-
   function render() {
     renderFilters();
     renderMarkers();
-    renderList();
-    const v = visible(), total = state.spots.length;
-    if (!total) {
-      setStatus(`Nothing mapped within ${km(state.radius)} of ${state.place}.`);
-      showMessage('<p>Move the map somewhere else and tap Search this area.</p>');
-    } else if (!v.length) {
-      setStatus('No spots match. Turn a filter back on.');
-    } else {
-      let text = `${v.length} ${v.length === 1 ? 'spot' : 'spots'} within ${km(state.radius)} of ${state.place}, nearest first.`;
-      if (state.place === 'Zurich centre') text += ' Tap Locate me to search around you.';
-      setStatus(text);
-    }
+    renderPanel();
   }
 
   function renderFilters() {
-    document.querySelectorAll('.filter').forEach(btn => {
-      const k = btn.dataset.kind;
-      btn.setAttribute('aria-pressed', String(state.filters[k]));
-      const n = state.spots.filter(s => s.kind === k).length;
-      btn.querySelector('.count').textContent = state.loading || !state.center ? '' : n;
+    document.querySelectorAll('.chip.type').forEach(btn => {
+      const k = btn.dataset.type;
+      btn.setAttribute('aria-pressed', String(state.types[k]));
+      btn.querySelector('.count').textContent =
+        state.phase === 'ready' ? state.spots.filter(s => s.kind === k).length : '';
+    });
+    document.querySelectorAll('.chip.need').forEach(btn => {
+      btn.setAttribute('aria-pressed', String(state.need[btn.dataset.need]));
     });
   }
 
   function renderMarkers() {
     markerLayer.clearLayers();
-    markers.clear();
-    const ink = css('--ink'), paper = css('--paper');
-    let selectedMarker = null;
-    for (const s of visible()) {
-      const sel = s.id === state.selected;
-      const mk = L.circleMarker([s.lat, s.lon], {
-        radius: sel ? 9 : 6,
-        color: sel ? ink : paper,
-        weight: sel ? 2.5 : 1.5,
+    if (state.phase !== 'ready') return;
+    const ink = css('--ink'), paper = css('--paper'), like = css('--like');
+    // Draw order puts liked and selected pins on top.
+    const rank = s => (s.id === state.selected ? 3 : myVote(s.id) === 1 ? 2 : myVote(s.id) === -1 ? 0 : 1);
+    const list = visible().sort((a, b) => rank(a) - rank(b));
+    for (const s of list) {
+      const sel = s.id === state.selected, v = myVote(s.id);
+      L.circleMarker([s.lat, s.lon], {
+        radius: sel ? 10 : v === 1 ? 8 : v === -1 ? 5 : 6,
+        color: sel ? ink : v === 1 ? like : paper,
+        weight: sel || v === 1 ? 3 : 1.5,
         fillColor: colorOf(s.kind),
-        fillOpacity: 0.95,
-      });
-      mk.on('click', () => selectFromMap(s.id));
-      mk.addTo(markerLayer);
-      markers.set(s.id, mk);
-      if (sel) selectedMarker = mk;
+        fillOpacity: v === -1 && !sel ? 0.35 : 0.95,
+        bubblingMouseEvents: false,
+      }).on('click', () => openSpot(s.id)).addTo(markerLayer);
     }
-    if (selectedMarker) selectedMarker.bringToFront();
+  }
+
+  function statusText() {
+    switch (state.phase) {
+      case 'idle': return '';
+      case 'locating': return 'Finding your location…';
+      case 'loading': return state.radius === RADII[0]
+        ? `Loading spots within ${km(state.radius)} of ${state.place}. This can take up to 30 seconds.`
+        : `The full area was too much for the servers, so trying ${km(state.radius)}…`;
+      case 'error': return 'Couldn’t load data from OpenStreetMap.';
+    }
+    const v = visible(), total = state.spots.length;
+    if (!total) return `Nothing mapped within ${km(state.radius)} of ${state.place}.`;
+    if (!v.length) return 'No spots match these filters.';
+    const liked = v.filter(s => myVote(s.id) === 1).length;
+    let text = `${v.length} ${v.length === 1 ? 'spot' : 'spots'} within ${km(state.radius)} of ${state.place}`;
+    text += liked ? `, ${liked} liked.` : '.';
+    if (state.place === 'Zurich centre') text += ' Tap Locate me to search around you.';
+    return text;
+  }
+
+  function renderPanel() {
+    const panel = $('#panel');
+    panel.dataset.mode = state.mode;
+    $('#status').textContent = statusText();
+    const toggle = $('#panelToggle');
+    toggle.textContent = state.mode === 'peek' ? 'Show list' : state.mode === 'list' ? 'Hide list' : 'Close';
+    if (state.mode === 'raccoon') {
+      toggle.hidden = false;
+      $('#panelBody').innerHTML = raccoonHTML();
+      return;
+    }
+    toggle.hidden = state.phase === 'idle' || state.phase === 'locating';
+
+    let html = '';
+    const sel = selectedSpot();
+    if (state.phase === 'error') {
+      html = `<div class="message">${state.error}<button class="pill" type="button" data-act="retry">Try again</button></div>`;
+    } else if (state.phase !== 'ready') {
+      html = state.phase === 'locating'
+        ? '<div class="message"><p>Allow location access to see spots around you. Without it, the map starts at Zurich centre.</p></div>'
+        : '<div class="message"><p>Reading OpenStreetMap. Busy areas can take up to 30 seconds.</p></div>';
+    } else if (state.mode === 'detail' && sel) {
+      html = detailHTML(sel);
+    } else {
+      html = listHTML();
+    }
+    $('#panelBody').innerHTML = html;
   }
 
   function factsHTML(list, warn) {
@@ -896,103 +1266,291 @@ function measuredRows(s) {
       `<span class="fact">${esc(f.label)} <span class="d">${fmtDist(f.d)}</span></span>`).join('')}</span>`;
   }
 
-  function itemHTML(s) {
-    const sel = s.id === state.selected, tx = s.text;
-    return `<li class="spot${sel ? ' selected' : ''}" data-id="${esc(s.id)}">
-      <button class="spot-head" type="button" data-act="toggle" aria-expanded="${sel}">
-        <span class="dot" style="--c:${colorOf(s.kind)}" aria-hidden="true"></span>
-        <span class="spot-body">
-          <span class="sentence">${esc(tx.sentence)}</span>
-          ${tx.comfort ? `<span class="comfort">${esc(tx.comfort)}</span>` : ''}
-          ${tx.note ? `<span class="comfort quiet">${esc(tx.note)}</span>` : ''}
-          ${factsHTML(tx.facts, false)}
-          ${factsHTML(tx.warnings, true)}
-        </span>
-        <span class="dist">${fmtDist(s.dist)}</span>
-      </button>
-      ${sel ? moreHTML(s) : ''}
-    </li>`;
+  function summaryHTML(tx, big) {
+    return `<span class="sentence${big ? ' big' : ''}">${esc(tx.sentence)}</span>
+      ${tx.comfort ? `<span class="comfort">${esc(tx.comfort)}</span>` : ''}
+      ${tx.note ? `<span class="comfort quiet">${esc(tx.note)}</span>` : ''}
+      ${factsHTML(tx.facts, false)}
+      ${factsHTML(tx.warnings, true)}`;
   }
 
-  function moreHTML(s) {
-    const dir = `https://www.google.com/maps/dir/?api=1&destination=${s.lat},${s.lon}&travelmode=bicycling`;
-    const osm = `https://www.openstreetmap.org/${s.osmType}/${s.osmId}`;
-    const rows = measuredRows(s).map(([k, v]) => `<dt>${esc(k)}</dt><dd>${esc(v)}</dd>`).join('');
-    return `<div class="spot-more">
-      <div class="actions">
-        <a class="go" href="${dir}" target="_blank" rel="noopener">Directions by bike</a>
-        <button type="button" data-act="map">Show on map</button>
-        <a href="${osm}" target="_blank" rel="noopener">Open in OpenStreetMap</a>
-      </div>
-      <p class="measured-title">Measured from OpenStreetMap</p>
-      <dl class="measured">${rows}</dl>
+  function listHTML() {
+    const v = visible();
+    if (!state.spots.length) {
+      return '<div class="message"><p>Move the map somewhere else and tap Search this area.</p></div>';
+    }
+    if (!v.length) {
+      return '<div class="message"><p>No spots match these filters. Turn one off to see more.</p></div>';
+    }
+    const items = v.slice(0, state.shown).map(s => {
+      const mv = myVote(s.id);
+      return `<li class="spot${mv === -1 ? ' disliked' : ''}">
+        <button class="spot-head" type="button" data-act="open" data-id="${esc(s.id)}">
+          <span class="dot" style="--c:${colorOf(s.kind)}" aria-hidden="true"></span>
+          <span class="spot-body">${summaryHTML(s.text, false)}</span>
+          <span class="dist">${fmtDist(s.dist)}${mv === 1 ? '<span class="liked">Liked</span>' : ''}${visitTag(s)}</span>
+        </button>
+      </li>`;
+    }).join('');
+    const rest = v.length - state.shown;
+    const more = rest > 0 ? `<button class="pill more" type="button" data-act="more">Show ${Math.min(PAGE, rest)} more</button>` : '';
+    return `<ul class="list">${items}</ul>${more}
+      <p class="note">Descriptions are estimated from OpenStreetMap data, so something missing from the map may still exist in real life.</p>`;
+  }
+
+  function visitTag(s) {
+    if (!game.visits[s.id]) return '';
+    return `<span class="tag">${takenToday(game, s.id, Date.now()) ? 'Snack taken' : 'Visited'}</span>`;
+  }
+
+  function checkinHTML(s) {
+    if (s.kind === 'toilet') return '';
+    const now = Date.now();
+    const r = state.reveal && state.reveal.id === s.id ? state.reveal : null;
+    if (r && !r.already) {
+      const name = (r.snack.rare ? 'golden ' : '') + r.snack.name;
+      const lines = [];
+      if (r.snack.rare) lines.push(`Rare find! It counts as ${GAME.rareValue} snacks.`);
+      if (r.first) lines.push('First visit, so one extra snack.');
+      lines.push(`${game.name || 'Your raccoon'} has now eaten ${game.total}.`);
+      return `<div class="checkin${r.snack.rare ? ' rare' : ''}">
+        <div class="reveal"><span class="snack" aria-hidden="true">${r.snack.emoji}</span>
+          <span class="reveal-text"><strong>${esc(cap(name))} for ${esc(game.name || 'your raccoon')}!</strong>${lines.map(l => `<span>${esc(l)}</span>`).join('')}</span>
+        </div>
+      </div>`;
+    }
+    if (takenToday(game, s.id, now)) {
+      const sn = snackFor(s.id, dayKey(new Date(now)));
+      return `<div class="checkin"><p class="ck-lead"><span class="ck-emoji" aria-hidden="true">${sn.emoji}</span> You took today’s snack here. Come back tomorrow for another.</p></div>`;
+    }
+    const first = !game.visits[s.id];
+    return `<div class="checkin">
+      <p class="ck-lead">A snack is waiting here today${first ? ', and a first visit earns one extra' : ''}.</p>
+      <button class="ck-btn" type="button" data-act="checkin"${state.checking ? ' disabled' : ''}>${state.checking ? 'Checking your location…' : 'Check in and grab the snack'}</button>
+      <p class="ck-msg">${esc(state.ckMsg || (TEST ? 'Test mode: your location isn’t checked.' : `Works within ${GAME.checkinRadius} m of the ${s.kind === 'table' ? 'table' : 'bench'}.`))}</p>
     </div>`;
   }
 
-  function renderList() {
-    const v = visible();
-    if (!v.length) {
-      if (state.spots.length) showMessage('<p>All spot types are hidden. Turn a filter back on.</p>');
-      return;
-    }
-    $('#list').innerHTML = v.slice(0, state.shown).map(itemHTML).join('');
-    const rest = v.length - state.shown;
-    $('#more').hidden = rest <= 0;
-    $('#more').textContent = `Show ${Math.min(PAGE, rest)} more`;
+  function raccoonHTML() {
+    const now = Date.now();
+    const st = stageOf(game.total), mood = moodOf(game, now);
+    const last = game.log[0];
+    const holding = mood.key === 'happy' && last ? last.emoji : '';
+    const name = game.name || 'Your raccoon';
+    const benches = Object.keys(game.visits).length;
+    const progress = st.next ? `${st.toNext} more ${st.toNext === 1 ? 'snack' : 'snacks'} until it’s ${st.next.label.toLowerCase()}.` : 'As round as a raccoon gets.';
+    const when = t => {
+      const d = Math.round((new Date(now).setHours(0, 0, 0, 0) - new Date(t).setHours(0, 0, 0, 0)) / 86400000);
+      return d === 0 ? 'Today' : d === 1 ? 'Yesterday' : new Date(t).toLocaleDateString(undefined, { day: 'numeric', month: 'short' });
+    };
+    const log = game.log.length
+      ? `<ul class="log">${game.log.slice(0, 15).map(e => `<li class="${e.rare ? 'rare' : ''}">
+          <span class="em" aria-hidden="true">${e.emoji}</span>
+          <span class="what">${esc(cap((e.rare ? 'golden ' : '') + e.name))}<span class="where">${esc(e.where)}</span></span>
+          <span class="val">+${e.value}<small>${when(e.t)}</small></span>
+        </li>`).join('')}</ul>`
+      : '<p class="fine">No snacks yet. Find a bench, check in, and your raccoon gets its first meal.</p>';
+    return `<div class="detail">
+      <div class="detail-nav"><button class="link-btn" type="button" data-act="back">Back to list</button></div>
+      <div class="raccoon-art">${raccoonSVG(st.scale, mood.key, holding)}</div>
+      <div class="rc-head"><h2 class="rc-name">${esc(name)}</h2><button class="link-btn" type="button" data-act="rename">${game.name ? 'Rename' : 'Name it'}</button></div>
+      <p class="rc-line">${esc(st.label)}. ${esc(mood.label)}.</p>
+      <p class="rc-line quiet">${game.total} ${game.total === 1 ? 'snack' : 'snacks'} eaten at ${benches} ${benches === 1 ? 'bench' : 'benches'}${game.rares ? `, ${game.rares} golden` : ''}. ${progress}</p>
+      <p class="rc-section">Recent snacks</p>
+      ${log}
+      <p class="fine">Check in within ${GAME.checkinRadius} m of a bench or picnic table to grab its snack. Each one gives a snack once a day, first visits give an extra one, and about 1 in ${GAME.rareOneIn} snacks is golden and counts as ${GAME.rareValue}.${TEST ? ' Test mode is on, so your location isn’t checked.' : ''}</p>
+    </div>`;
+  }
+
+  function detailHTML(s) {
+    const mv = myVote(s.id);
+    const canV = s.kind === 'toilet' || canVote(game, s.id, Date.now());
+    const dir = `https://www.google.com/maps/dir/?api=1&destination=${s.lat},${s.lon}&travelmode=bicycling`;
+    const osm = `https://www.openstreetmap.org/${s.osmType}/${s.osmId}`;
+    const gone = `https://www.openstreetmap.org/note/new#map=19/${s.lat.toFixed(6)}/${s.lon.toFixed(6)}`;
+    const rows = measuredRows(s).map(([k, v]) => `<dt>${esc(k)}</dt><dd>${esc(v)}</dd>`).join('');
+    return `<div class="detail">
+      <div class="detail-nav">
+        <button class="link-btn" type="button" data-act="back">Back to list</button>
+        <span class="dist">${fmtDist(s.dist)} away</span>
+      </div>
+      <p class="kind"><span class="dot" style="--c:${colorOf(s.kind)}" aria-hidden="true"></span>${KIND_LABEL[s.kind]}</p>
+      ${summaryHTML(s.text, true)}
+      ${checkinHTML(s)}
+      <div class="votes" role="group" aria-label="Your vote">
+        <button class="vote like" type="button" data-act="vote" data-v="1" aria-pressed="${mv === 1}"${canV ? '' : ' disabled'}>${ICON_LIKE}Like</button>
+        <button class="vote dislike" type="button" data-act="vote" data-v="-1" aria-pressed="${mv === -1}"${canV ? '' : ' disabled'}>${ICON_DISLIKE}Dislike</button>
+      </div>
+      <p class="fine">${canV ? 'Votes are saved on this device for now.' : `Check in here to vote. Voting stays open for ${GAME.voteWindowHours} hours after a check-in.`}</p>
+      <div class="actions">
+        <a class="go" href="${dir}" target="_blank" rel="noopener">Directions by bike</a>
+        <a href="${osm}" target="_blank" rel="noopener">Open in OpenStreetMap</a>
+        <a href="${gone}" target="_blank" rel="noopener">Report as gone</a>
+      </div>
+      <details class="measured-box">
+        <summary>Measured from OpenStreetMap</summary>
+        <dl class="measured">${rows}</dl>
+      </details>
+    </div>`;
   }
 
   /* ---------- interaction ---------- */
-  function refocus(id) {
-    const head = document.querySelector(`.spot[data-id="${CSS.escape(id)}"] .spot-head`);
-    if (head) head.focus({ preventScroll: true });
-    return head;
+  function setMode(mode) {
+    state.mode = mode;
+    renderPanel();
   }
 
-  function selectFromMap(id) {
-    state.selected = id;
-    const idx = visible().findIndex(s => s.id === id);
-    if (idx >= state.shown) state.shown = Math.ceil((idx + 1) / PAGE) * PAGE;
-    renderList();
-    renderMarkers();
-    const head = refocus(id);
-    if (head) head.closest('.spot').scrollIntoView({ block: 'nearest', behavior: reduceMotion ? 'auto' : 'smooth' });
+  // Centre the pin in the part of the map the sheet doesn't cover.
+  function reveal(s) {
+    const ll = L.latLng(s.lat, s.lon);
+    const opts = { animate: !reduceMotion };
+    if (wide.matches) {
+      if (!map.getBounds().pad(-0.15).contains(ll)) map.panTo(ll, opts);
+      return;
+    }
+    const z = Math.max(map.getZoom(), 16);
+    const h = $('#panel').offsetHeight;
+    const p = map.project(ll, z).add([0, h / 2]);
+    map.setView(map.unproject(p, z), z, opts);
   }
 
-  function showOnMap(id) {
+  function openSpot(id) {
     const s = state.spots.find(x => x.id === id);
     if (!s) return;
-    map.setView([s.lat, s.lon], Math.max(map.getZoom(), 17), { animate: !reduceMotion });
-    if (!wide.matches) document.querySelector('.mapwrap').scrollIntoView({ block: 'start', behavior: reduceMotion ? 'auto' : 'smooth' });
+    state.selected = id;
+    state.ckMsg = '';
+    state.reveal = null;
+    setMode('detail');
+    renderMarkers();
+    $('#panelBody').scrollTop = 0;
+    requestAnimationFrame(() => reveal(s));
   }
 
-  $('#list').addEventListener('click', e => {
-    const actEl = e.target.closest('[data-act]');
-    const li = e.target.closest('.spot');
-    if (!actEl || !li) return;
-    const id = li.dataset.id;
-    if (actEl.dataset.act === 'toggle') {
-      state.selected = state.selected === id ? null : id;
-      renderList();
+  function finishCheckin(s) {
+    const r = applyCheckin(game, s, Date.now());
+    saveGame();
+    state.reveal = Object.assign({ id: s.id }, r);
+    state.ckMsg = '';
+    renderPanel();
+    renderMarkers();
+    updateRaccoonButton();
+  }
+
+  function checkIn(s) {
+    if (state.checking) return;
+    if (TEST) { finishCheckin(s); return; }
+    if (!('geolocation' in navigator)) {
+      state.ckMsg = 'This browser can’t share your location, so checking in isn’t possible.';
+      renderPanel();
+      return;
+    }
+    state.checking = true;
+    state.ckMsg = '';
+    renderPanel();
+    navigator.geolocation.getCurrentPosition(pos => {
+      state.checking = false;
+      if (state.selected !== s.id) return;
+      const { latitude, longitude, accuracy } = pos.coords;
+      drawUser({ lat: latitude, lon: longitude }, accuracy);
+      const d = metres(latitude, longitude, s.lat, s.lon);
+      if (accuracy > GAME.maxAccuracy) {
+        state.ckMsg = `Your location is only accurate to about ${Math.round(accuracy)} m. Try again from a more open spot.`;
+      } else if (d > GAME.checkinRadius + Math.min(accuracy, GAME.accuracySlack)) {
+        state.ckMsg = `You’re about ${fmtDist(d)} away. Get within ${GAME.checkinRadius} m to check in.`;
+      } else {
+        finishCheckin(s);
+        return;
+      }
+      renderPanel();
+    }, err => {
+      state.checking = false;
+      state.ckMsg = err.code === 1
+        ? 'Location access is blocked for this page, so checking in isn’t possible.'
+        : 'Couldn’t get your location. Try again in a moment.';
+      renderPanel();
+    }, { enableHighAccuracy: true, timeout: 15000, maximumAge: 10000 });
+  }
+
+  function closeOverlay() {
+    state.selected = null;
+    state.reveal = null;
+    setMode(wide.matches ? 'peek' : 'list');
+    renderMarkers();
+  }
+
+  $('#panelBody').addEventListener('click', e => {
+    const el = e.target.closest('[data-act]');
+    if (!el) return;
+    const act = el.dataset.act;
+    if (act === 'open') {
+      openSpot(el.dataset.id);
+    } else if (act === 'back') {
+      closeOverlay();
+    } else if (act === 'checkin') {
+      const s = selectedSpot();
+      if (s) checkIn(s);
+    } else if (act === 'rename') {
+      const n = prompt('What should your raccoon be called?', game.name || '');
+      if (n !== null) {
+        game.name = n.trim().slice(0, 24);
+        saveGame();
+        renderPanel();
+      }
+    } else if (act === 'more') {
+      state.shown += PAGE;
+      renderPanel();
+    } else if (act === 'retry') {
+      search(state.center, state.place);
+    } else if (act === 'vote') {
+      const s = selectedSpot();
+      if (!s || el.disabled) return;
+      castVote(s, Number(el.dataset.v));
+      const top = $('#panelBody').scrollTop;
+      renderPanel();
       renderMarkers();
-      refocus(id);
-    } else if (actEl.dataset.act === 'map') {
-      showOnMap(id);
+      $('#panelBody').scrollTop = top;
+      const again = document.querySelector(`.vote[data-v="${el.dataset.v}"]`);
+      if (again) again.focus({ preventScroll: true });
     }
   });
 
-  document.querySelectorAll('.filter').forEach(btn => btn.addEventListener('click', () => {
-    const k = btn.dataset.kind;
-    state.filters[k] = !state.filters[k];
+  $('#panelToggle').addEventListener('click', () => {
+    state.reveal = null;
+    if (state.mode === 'peek') setMode('list');
+    else {
+      state.selected = null;
+      setMode('peek');
+      renderMarkers();
+    }
+  });
+
+  document.querySelectorAll('.chip').forEach(btn => btn.addEventListener('click', () => {
+    if (btn.dataset.type) state.types[btn.dataset.type] = !state.types[btn.dataset.type];
+    else state.need[btn.dataset.need] = !state.need[btn.dataset.need];
     state.shown = PAGE;
-    const sel = state.spots.find(s => s.id === state.selected);
-    if (sel && !state.filters[sel.kind]) state.selected = null;
-    if (!state.loading && state.center) render(); else renderFilters();
+    const sel = selectedSpot();
+    if (sel && !passes(sel)) {
+      state.selected = null;
+      if (state.mode === 'detail') state.mode = 'peek';
+    }
+    render();
   }));
 
-  $('#more').addEventListener('click', () => {
-    state.shown += PAGE;
-    renderList();
+  document.addEventListener('keydown', e => {
+    if (e.key === 'Escape' && (state.mode === 'detail' || state.mode === 'raccoon')) closeOverlay();
   });
+
+  $('#raccoonBtn').addEventListener('click', () => {
+    if (state.mode === 'raccoon') { closeOverlay(); return; }
+    state.selected = null;
+    state.reveal = null;
+    setMode('raccoon');
+    renderMarkers();
+    $('#panelBody').scrollTop = 0;
+  });
+  updateRaccoonButton();
+
+  wide.addEventListener('change', () => renderPanel());
 
   $('#searchHere').addEventListener('click', () => {
     const c = map.getCenter();
@@ -1010,13 +1568,13 @@ function measuredRows(s) {
   function locate(auto) {
     if (!('geolocation' in navigator)) {
       if (auto) search(ZURICH, 'Zurich centre');
-      else setStatus('This browser can’t share your location. Move the map and tap Search this area.');
+      else $('#status').textContent = 'This browser can’t share your location. Move the map and tap Search this area.';
       return;
     }
     $('#locate').disabled = true;
     if (auto) {
-      setStatus('Finding your location…');
-      showMessage('<p>Allow location access to see spots around you. Without it, the list starts at Zurich centre.</p>');
+      state.phase = 'locating';
+      render();
     }
     navigator.geolocation.getCurrentPosition(pos => {
       $('#locate').disabled = false;
@@ -1028,7 +1586,7 @@ function measuredRows(s) {
       $('#locate').disabled = false;
       const why = err.code === 1 ? 'Location access is blocked for this page.' : 'Your location isn’t available right now.';
       if (auto) search(ZURICH, 'Zurich centre');
-      else setStatus(`${why} Move the map and tap Search this area instead.`);
+      else $('#status').textContent = `${why} Move the map and tap Search this area instead.`;
     }, { enableHighAccuracy: true, timeout: 10000, maximumAge: 60000 });
   }
 
