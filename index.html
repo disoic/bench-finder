@@ -281,6 +281,33 @@ button { font: inherit; color: inherit; cursor: pointer; }
 .log .val small { display: block; font-size: 12px; color: var(--ink-3); }
 .log li.rare .what { color: var(--gold); font-weight: 600; }
 
+/* Adding a bench */
+.add-title { margin: 8px 0 4px; font-family: var(--serif); font-weight: 500; font-size: 21px; }
+.field-label { margin: 16px 0 6px; font-size: 13.5px; font-weight: 600; color: var(--ink-2); }
+.seg { display: flex; gap: 6px; }
+.segbtn {
+  flex: 1;
+  padding: 11px 8px;
+  border-radius: 10px;
+  border: 1px solid var(--line);
+  background: var(--paper);
+  font-weight: 500;
+  font-size: 14px;
+}
+.segbtn[aria-pressed="true"] { background: var(--ink); border-color: var(--ink); color: var(--paper); }
+.add-title + .fine { margin-top: 2px; }
+.detail .ck-btn { margin-top: 18px; }
+.actions .plain, .actions button.go {
+  font-weight: 500;
+  font-size: 14px;
+  line-height: 1;
+  padding: 10px 14px;
+  border-radius: 999px;
+  border: 1px solid var(--line);
+  background: var(--paper);
+}
+.actions button.go { background: var(--bench); border-color: var(--bench); color: var(--paper); }
+
 /* Wide screens: sidebar on the left, map fills the rest */
 @media (min-width: 900px) {
   .app { display: grid; grid-template-columns: 440px 1fr; grid-template-rows: auto 1fr; }
@@ -321,6 +348,7 @@ button { font: inherit; color: inherit; cursor: pointer; }
     <div id="map" role="region" aria-label="Map of benches, picnic tables and toilets"></div>
     <div class="mapbtns">
       <button id="locate" class="pill" type="button">Locate me</button>
+      <button id="addBtn" class="pill" type="button">Add a bench</button>
       <button id="raccoonBtn" class="pill" type="button" aria-label="Your raccoon and its snacks"><span aria-hidden="true">🦝</span> <span id="snackCount">0</span></button>
       <button id="searchHere" class="pill strong" type="button" hidden>Search this area</button>
     </div>
@@ -373,7 +401,11 @@ const RULES = {
   bin: 20,
   bikeParking: 50,
 };
-const SEARCH_RADIUS = 1500;   // spots are listed within this distance
+const SEARCH_RADIUS = 1500;   // spots are shown within this distance
+const FETCH_RADIUS = 5000;    // data is loaded and saved on the phone this far around you
+const TILE_LAT = 0.03;        // data is fetched in squares of about 3.3 km...
+const TILE_LON = 0.045;       // ...so moving around reuses what's already saved
+const TILE_MAX_AGE_DAYS = 14; // saved squares older than this are refreshed in the background
 const MEASURE_LIMIT = 250;    // line and area distances are measured up to this
 
 const MATERIAL = { wood: 'wooden', metal: 'metal', steel: 'metal', stone: 'stone', granite: 'stone', concrete: 'concrete', plastic: 'plastic' };
@@ -383,6 +415,145 @@ function clipBox(c, half) {
   const dLat = half / 110574;
   const dLon = half / (111320 * Math.cos(c.lat * Math.PI / 180));
   return [c.lat - dLat, c.lon - dLon, c.lat + dLat, c.lon + dLon];
+}
+
+function expandBox(box, m) {
+  const dLat = m / 110574, dLon = m / (111320 * Math.cos((box[0] + box[2]) / 2 * Math.PI / 180));
+  return [box[0] - dLat, box[1] - dLon, box[2] + dLat, box[3] + dLon];
+}
+function tileBox(id) {
+  const [i, j] = id.split('_').map(Number);
+  return [i * TILE_LAT, j * TILE_LON, (i + 1) * TILE_LAT, (j + 1) * TILE_LON];
+}
+// Squares that touch a circle, nearest first.
+function tilesForCircle(c, r) {
+  const dLat = r / 110574, dLon = r / (111320 * Math.cos(c.lat * Math.PI / 180));
+  const proj = makeProj(c), out = [];
+  for (let i = Math.floor((c.lat - dLat) / TILE_LAT); i <= Math.floor((c.lat + dLat) / TILE_LAT); i++) {
+    for (let j = Math.floor((c.lon - dLon) / TILE_LON); j <= Math.floor((c.lon + dLon) / TILE_LON); j++) {
+      const id = i + '_' + j, b = tileBox(id);
+      const [x, y] = proj(Math.min(Math.max(c.lat, b[0]), b[2]), Math.min(Math.max(c.lon, b[1]), b[3]));
+      const d = Math.hypot(x, y);
+      if (d <= r) out.push({ id, d });
+    }
+  }
+  return out.sort((a, b) => a.d - b.d).map(t => t.id);
+}
+
+function buildTileQuery(box) {
+  const bb = box.map(v => v.toFixed(5)).join(',');
+  const clip = expandBox(box, 120).map(v => v.toFixed(5)).join(',');
+  return `[out:json][timeout:45][maxsize:268435456][bbox:${bb}];
+make section name="spots";out;
+(
+  node["amenity"="bench"];
+  way["amenity"="bench"];
+  node["leisure"="picnic_table"];
+  way["leisure"="picnic_table"];
+  nwr["amenity"="toilets"];
+);
+out center qt;
+make section name="pois";out;
+(
+  nwr["amenity"="drinking_water"];
+  nwr["amenity"="fountain"]["drinking_water"="yes"];
+  nwr["man_made"="water_tap"]["drinking_water"="yes"];
+  nwr["shop"~"^(bakery|supermarket|convenience)$"];
+  nwr["amenity"="bicycle_parking"];
+  nwr["tourism"="viewpoint"];
+  nwr["amenity"="shelter"];
+  node["highway"="bus_stop"];
+  node["railway"="tram_stop"];
+  node["public_transport"="platform"];
+);
+out center qt;
+make section name="trees";out;
+node["natural"="tree"];
+out skel qt;
+make section name="bins";out;
+node["amenity"="waste_basket"];
+out skel qt;
+make section name="lines";out;
+(
+  way["highway"~"^(motorway|trunk|primary|secondary)(_link)?$"]["tunnel"!~"^(yes|building_passage)$"];
+  way["highway"~"^(pedestrian|footway|path)$"]["name"]["footway"!~"^(sidewalk|crossing|traffic_island)$"]["tunnel"!="yes"];
+  way["railway"~"^(rail|light_rail|narrow_gauge)$"]["tunnel"!="yes"];
+  way["railway"="tram"]["tunnel"!="yes"];
+  way["waterway"~"^(river|canal|stream)$"]["tunnel"!~"^(yes|culvert)$"];
+  way["natural"="tree_row"];
+  way["natural"="water"];
+  relation["natural"="water"];
+);
+out geom(${clip});
+make section name="areas";out;
+(
+  way["leisure"~"^(park|garden)$"];
+  relation["leisure"~"^(park|garden)$"];
+  way["landuse"="cemetery"];
+  relation["landuse"="cemetery"];
+  way["amenity"="grave_yard"];
+  way["landuse"="forest"];
+  relation["landuse"="forest"];
+  way["natural"="wood"];
+  relation["natural"="wood"];
+);
+out geom;`;
+}
+
+// Keeps only what the summaries need, so saved squares stay small.
+const KEEP_TAGS = new Set(['amenity', 'leisure', 'highway', 'railway', 'waterway', 'natural', 'water', 'landuse', 'tourism',
+  'shop', 'man_made', 'drinking_water', 'access', 'garden:type', 'public_transport', 'bus', 'tram', 'footway', 'tunnel',
+  'backrest', 'material', 'covered', 'seats', 'direction', 'fee', 'charge', 'opening_hours', 'wheelchair', 'changing_table']);
+function slimTags(t) {
+  const o = {};
+  for (const k in t) if (KEEP_TAGS.has(k)) o[k] = t[k];
+  return o;
+}
+function slimTile(json, box) {
+  const s = splitSections(json);
+  const r6 = v => Math.round(v * 1e6) / 1e6;
+  const pts = g => g.map(p => (p && p.lat != null ? { lat: r6(p.lat), lon: r6(p.lon) } : null));
+  const pt = el => {
+    const o = { type: el.type, id: el.id, tags: slimTags(el.tags || {}) };
+    if (el.lat != null) { o.lat = r6(el.lat); o.lon = r6(el.lon); } else if (el.center) o.center = { lat: r6(el.center.lat), lon: r6(el.center.lon) };
+    return o;
+  };
+  const shape = (el, clip) => {
+    const o = { type: el.type, id: el.id, tags: slimTags(el.tags || {}) };
+    if (el.geometry) o.geometry = pts(el.geometry);
+    if (el.members) o.members = el.members.filter(m => m.type === 'way' && m.geometry).map(m => ({ type: 'way', geometry: pts(m.geometry) }));
+    if (clip) o.clip = clip;
+    return o;
+  };
+  const flat = list => {
+    const a = [];
+    for (const el of list) if (el.lat != null) a.push(r6(el.lat), r6(el.lon));
+    return a;
+  };
+  const clip = expandBox(box, 120);
+  return {
+    spots: s.spots.map(pt), pois: s.pois.map(pt), trees: flat(s.trees), bins: flat(s.bins),
+    lines: s.lines.map(el => shape(el, clip)), areas: s.areas.map(el => shape(el, null)),
+  };
+}
+// Combines saved squares. Points and areas appear once; clipped lines keep each square's piece.
+function mergeTiles(list) {
+  const out = { spots: [], pois: [], trees: [], bins: [], lines: [], areas: [] };
+  const seen = { spots: new Set(), pois: new Set(), areas: new Set() };
+  for (const d of list) {
+    for (const k of ['spots', 'pois', 'areas']) {
+      for (const el of d[k]) {
+        const key = el.type + '/' + el.id;
+        if (seen[k].has(key)) continue;
+        seen[k].add(key);
+        out[k].push(el);
+      }
+    }
+    for (const el of d.lines) out.lines.push(el);
+    out.trees.push(d.trees);
+    out.bins.push(d.bins);
+  }
+  return out;
 }
 
 function buildQuery(c, R = SEARCH_RADIUS) {
@@ -463,14 +634,18 @@ function coordOf(el) {
 // Clipped output may contain nulls; gaps are never bridged.
 function buildFeature(el, proj, clipHalf) {
   const segs = [];
-  const out = p => clipHalf && (Math.abs(p[0]) > clipHalf || Math.abs(p[1]) > clipHalf);
+  const box = el.clip;
+  const offBox = g => box ? (g.lat < box[0] || g.lat > box[2] || g.lon < box[1] || g.lon > box[3]) : false;
+  const offHalf = p => clipHalf && (Math.abs(p[0]) > clipHalf || Math.abs(p[1]) > clipHalf);
   const add = geom => {
-    let prev = null;
+    let prev = null, prevG = null;
     for (const g of geom) {
-      if (!g || g.lat == null) { prev = null; continue; }
+      if (!g || g.lat == null) { prev = null; prevG = null; continue; }
       const p = proj(g.lat, g.lon);
-      if (prev && !(out(prev) && out(p))) segs.push(prev[0], prev[1], p[0], p[1]);
+      // A segment with both ends outside the clip area can be a bridge over omitted nodes, so skip it.
+      if (prev && !(offBox(prevG) && offBox(g)) && !(offHalf(prev) && offHalf(p))) segs.push(prev[0], prev[1], p[0], p[1]);
       prev = p;
+      prevG = g;
     }
   };
   if (el.type === 'way' && el.geometry) add(el.geometry);
@@ -585,8 +760,13 @@ function splitSections(json) {
 
 function analyse(json, center, R = SEARCH_RADIUS) {
   const sec = splitSections(json);
+  sec.trees = [sec.trees.flatMap(el => (el.lat != null ? [el.lat, el.lon] : []))];
+  sec.bins = [sec.bins.flatMap(el => (el.lat != null ? [el.lat, el.lon] : []))];
+  return analyseSections(sec, center, R, R + 60 + 150);
+}
+
+function analyseSections(sec, center, R = SEARCH_RADIUS, clipHalf = null) {
   const proj = makeProj(center);
-  const clipHalf = R + 60 + 150;
 
   const P = { drink: [], food: [], bike: [], view: [], shelter: [], stop: [], toilet: [] };
   const addPt = (list, el, extra) => {
@@ -612,8 +792,8 @@ function analyse(json, center, R = SEARCH_RADIUS) {
   }
 
   const trees = makeGrid(20), bins = makeGrid(20);
-  for (const el of sec.trees) if (el.lat != null) gridAdd(trees, ...proj(el.lat, el.lon));
-  for (const el of sec.bins) if (el.lat != null) gridAdd(bins, ...proj(el.lat, el.lon));
+  for (const a of sec.trees) for (let i = 0; i < a.length; i += 2) gridAdd(trees, ...proj(a[i], a[i + 1]));
+  for (const a of sec.bins) for (let i = 0; i < a.length; i += 2) gridAdd(bins, ...proj(a[i], a[i + 1]));
 
   const Lf = { road: [], promenade: [], rail: [], tram: [], river: [], stream: [], lake: [], pond: [], water: [], treerow: [] };
   for (const el of sec.lines) {
@@ -657,7 +837,7 @@ function analyse(json, center, R = SEARCH_RADIUS) {
     const dist = Math.hypot(x, y);
     if (dist > R) continue;
     const id = el.type + '/' + el.id;
-    const spot = { id, osmType: el.type, osmId: el.id, kind, lat: c[0], lon: c[1], dist, tags: t };
+    const spot = { id, osmType: el.type, osmId: el.id, kind, lat: c[0], lon: c[1], dist, tags: t, added: el.type === 'user' };
     spot.m = measure(x, y, id, D);
     spot.text = describe(spot);
     spot.flags = flagsOf(spot.m);
@@ -848,6 +1028,10 @@ const GAME = {
   firstVisitBonus: 1,         // first visit to a bench: one extra snack
   requireCheckinToVote: true, // votes unlock with a check-in...
   voteWindowHours: 24,        // ...and stay open this long
+  addReward: 10,              // snacks for adding a missing bench
+  addsPerDay: 3,              // new pins per day
+  addMinGap: 15,              // metres to the nearest mapped bench or table
+  addMaxAccuracy: 30,         // adding needs a good location fix
 };
 
 const SNACKS = [
@@ -903,6 +1087,29 @@ function applyCheckin(game, spot, now) {
   game.log = game.log.slice(0, 50);
   return { already: false, snack, first, value };
 }
+// Adding a missing bench counts as a first visit, with a bigger reward.
+function applyAdd(game, rec, now) {
+  game.visits[rec.id] = { first: now, last: dayKey(new Date(now)), lastTs: now, count: 1 };
+  game.total += GAME.addReward;
+  game.lastFed = now;
+  game.log.unshift({
+    t: now, id: rec.id, emoji: '📍', name: rec.kind === 'table' ? 'new picnic table' : 'new bench',
+    rare: false, value: GAME.addReward, first: true, added: true, where: 'Added by you',
+  });
+  game.log = game.log.slice(0, 50);
+  return { value: GAME.addReward };
+}
+// Removing your own pin takes its reward back.
+function undoAdd(game, id) {
+  game.total = Math.max(0, game.total - GAME.addReward);
+  delete game.visits[id];
+  game.log = game.log.filter(e => e.id !== id);
+}
+function addsToday(added, now) {
+  const day = dayKey(new Date(now));
+  return added.filter(a => dayKey(new Date(a.t)) === day).length;
+}
+
 function takenToday(game, id, now) {
   const v = game.visits[id];
   return !!v && v.last === dayKey(new Date(now));
@@ -999,9 +1206,9 @@ function raccoonSVG(scale, mood, holding) {
     'https://maps.mail.ru/osm/tools/overpass/api/interpreter',
     'https://overpass.private.coffee/api/interpreter',
   ];
-  const RADII = [SEARCH_RADIUS, 800];   // if the full area fails, try a smaller one
   const VOTES_KEY = 'pause.votes.v1';
   const GAME_KEY = 'pause.raccoon.v1';
+  const ADDED_KEY = 'pause.added.v1';
   const TEST = new URLSearchParams(location.search).has('test');   // open with ?test to check in without being there
   const KIND_LABEL = { bench: 'Bench', table: 'Picnic table', toilet: 'Toilet' };
   const ICON_LIKE = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg>';
@@ -1018,8 +1225,10 @@ function raccoonSVG(scale, mood, holding) {
     phase: 'idle',          // idle | locating | loading | ready | error
     center: null, place: '', radius: SEARCH_RADIUS,
     spots: [], shown: PAGE, selected: null,
-    mode: 'peek',           // peek | list | detail | raccoon
+    mode: 'peek',           // peek | list | detail | raccoon | add
     ckMsg: '', checking: false, reveal: null,
+    pending: 0, failedN: 0,
+    add: { kind: 'bench', backrest: '', msg: '', near: null, done: null, busy: false },
     error: '',
     types: { bench: true, table: true, toilet: true },
     need: { liked: false, water: false, green: false, quiet: false },
@@ -1044,6 +1253,11 @@ function raccoonSVG(scale, mood, holding) {
   }
   function updateRaccoonButton() {
     $('#snackCount').textContent = game.total;
+  }
+  let added = [];
+  try { added = JSON.parse(localStorage.getItem(ADDED_KEY)) || []; } catch (e) { added = []; }
+  function saveAdded() {
+    try { localStorage.setItem(ADDED_KEY, JSON.stringify(added)); } catch (e) { /* private mode */ }
   }
   function metres(lat1, lon1, lat2, lon2) {
     const k = Math.PI / 180, x = (lon2 - lon1) * k * Math.cos((lat1 + lat2) / 2 * k), y = (lat2 - lat1) * k;
@@ -1118,46 +1332,156 @@ function raccoonSVG(scale, mood, holding) {
     }).addTo(map);
   }
 
-  async function search(center, place) {
-    const token = ++searchToken;
-    Object.assign(state, { phase: 'loading', center, place, spots: [], shown: PAGE, selected: null, error: '' });
-    if (state.mode === 'detail') state.mode = 'peek';
-    $('#searchHere').hidden = true;
-    markerLayer.clearLayers();
-    let lastErr = null;
-    for (const radius of RADII) {
-      state.radius = radius;
-      drawArea(center, radius);
-      render();
+  /* ---------- saved squares of map data ----------
+     Data comes in squares of about 3.3 km. Squares are saved on the phone (IndexedDB),
+     so moving around or reopening the app reuses them instead of loading again. */
+  const idb = (() => {
+    let dbp = null;
+    const open = () => dbp || (dbp = new Promise((res, rej) => {
+      const r = indexedDB.open('pause', 1);
+      r.onupgradeneeded = () => r.result.createObjectStore('tiles');
+      r.onsuccess = () => res(r.result);
+      r.onerror = () => rej(r.error);
+    }));
+    return {
+      async get(k) {
+        try {
+          const db = await open();
+          return await new Promise(res => {
+            const q = db.transaction('tiles').objectStore('tiles').get(k);
+            q.onsuccess = () => res(q.result || null);
+            q.onerror = () => res(null);
+          });
+        } catch (e) { return null; }
+      },
+      async put(k, v) {
+        try { (await open()).transaction('tiles', 'readwrite').objectStore('tiles').put(v, k); } catch (e) { /* storage full or blocked */ }
+      },
+    };
+  })();
+
+  const cache = new Map();   // recently used squares, kept in memory as well
+  const failed = new Map();  // square → why it failed
+  const CACHE_SIZE = 20;
+  function remember(id, rec) {
+    cache.delete(id);
+    cache.set(id, rec);
+    while (cache.size > CACHE_SIZE) {
+      const old = [...cache.keys()].find(k => !currentNeed.includes(k));
+      if (!old) break;
+      cache.delete(old);
+    }
+  }
+  let currentNeed = [];
+  let queue = [], working = false, probeToken = 0;
+  const fresh = rec => Date.now() - rec.t < TILE_MAX_AGE_DAYS * 86400000;
+
+  function enqueue(ids, urgent) {
+    const list = ids.filter(id => !(cache.has(id) && fresh(cache.get(id))));
+    queue = queue.filter(id => !list.includes(id));
+    queue = urgent ? list.concat(queue) : queue.concat(list);
+    pump();
+  }
+
+  async function pump() {
+    if (working) return;
+    working = true;
+    while (queue.length) {
+      const id = queue.shift();
+      const needed = currentNeed.includes(id);
+      const inMemory = cache.has(id);
+      const saved = cache.get(id) || await idb.get(id);
+      if (saved && fresh(saved)) {
+        remember(id, saved);
+        if (needed && !inMemory) refresh();
+        continue;
+      }
       try {
-        const json = await overpass(buildQuery(center, radius));
-        if (token !== searchToken) return;
-        state.spots = analyse(json, center, radius);
-        state.phase = 'ready';
-        render();
-        return;
+        const json = await overpass(buildTileQuery(tileBox(id)));
+        const rec = { t: Date.now(), data: slimTile(json, tileBox(id)) };
+        idb.put(id, rec);
+        failed.delete(id);
+        remember(id, rec);
+        if (currentNeed.includes(id)) refresh();
       } catch (err) {
-        if (token !== searchToken) return;
-        lastErr = err;
+        failed.set(id, err.message);
+        if (currentNeed.includes(id)) refresh();
       }
     }
+    working = false;
+  }
 
-    // Everything failed. A tiny test query tells "busy" apart from "unreachable".
+  function userElements() {
+    return added.map(a => ({
+      type: 'user', id: a.id.split('/')[1], lat: a.lat, lon: a.lon,
+      tags: Object.assign(a.kind === 'table' ? { leisure: 'picnic_table' } : { amenity: 'bench' }, a.tags || {}),
+    }));
+  }
+
+  // Recompute the visible spots from whatever squares are available.
+  function refresh() {
+    const recs = currentNeed.map(id => cache.get(id)).filter(Boolean);
+    state.pending = currentNeed.filter(id => !cache.has(id) && !failed.has(id)).length;
+    state.failedN = currentNeed.filter(id => !cache.has(id) && failed.has(id)).length;
+    if (!recs.length) {
+      if (state.pending) { state.phase = 'loading'; render(); return; }
+      showFailure();
+      return;
+    }
+    const sections = mergeTiles(recs.map(r => r.data));
+    sections.spots.push(...userElements());
+    state.spots = analyseSections(sections, state.center, SEARCH_RADIUS);
+    state.phase = 'ready';
+    if (state.selected && !state.spots.some(s => s.id === state.selected)) {
+      state.selected = null;
+      if (state.mode === 'detail') state.mode = 'peek';
+    }
+    render();
+  }
+
+  async function showFailure() {
+    const token = ++probeToken;
+    state.phase = 'loading';
+    render();
     let reachable = false;
     try {
       await post(ENDPOINTS[0], '[out:json][timeout:10];node(1);out ids;', 15000);
       reachable = true;
     } catch (e) { /* stays false */ }
-    if (token !== searchToken) return;
+    if (token !== probeToken) return;
     const why = reachable
-      ? 'The data server is reachable but couldn’t finish this search, most likely because it’s busy. Try again in a minute.'
+      ? 'The data server is reachable but couldn’t finish loading this area, most likely because it’s busy. Try again in a minute.'
       : location.protocol === 'file:'
         ? 'The data servers refused the request. The page is open as a local file, which they may reject, so open it through your GitHub Pages link instead.'
         : 'The data servers couldn’t be reached. They may be overloaded, or this network may block them. Try again in a minute or on another connection.';
+    const detail = [...new Set(currentNeed.map(id => failed.get(id)).filter(Boolean))].join(', ');
     state.phase = 'error';
-    state.error = `<p>${why}</p><p class="detail-line">${esc(lastErr ? lastErr.message : '')}</p>`;
+    state.error = `<p>${why}</p><p class="detail-line">${esc(detail)}</p>`;
     if (!wide.matches) state.mode = 'list';
     render();
+  }
+
+  // Show spots within 1.5 km of a point, using saved squares where possible,
+  // and quietly load the rest of the 5 km surroundings in the background.
+  async function showAround(center, place) {
+    probeToken++;
+    Object.assign(state, { center, place, shown: PAGE, error: '' });
+    if (state.mode === 'detail') { state.selected = null; state.mode = 'peek'; }
+    $('#searchHere').hidden = true;
+    drawArea(center, SEARCH_RADIUS);
+    const need = tilesForCircle(center, SEARCH_RADIUS + 450);
+    currentNeed = need;
+    await Promise.all(need.filter(id => !cache.has(id)).map(async id => {
+      const rec = await idb.get(id);
+      if (rec && currentNeed.includes(id)) remember(id, rec);
+    }));
+    if (currentNeed !== need) return;
+    need.forEach(id => failed.delete(id));
+    refresh();
+    enqueue(need.filter(id => !cache.has(id)), true);
+    const later = tilesForCircle(center, FETCH_RADIUS).filter(id => !need.includes(id))
+      .concat(need.filter(id => cache.has(id) && !fresh(cache.get(id))));
+    enqueue(later, false);
   }
 
   /* ---------- filtering ---------- */
@@ -1203,10 +1527,11 @@ function raccoonSVG(scale, mood, holding) {
       const sel = s.id === state.selected, v = myVote(s.id);
       L.circleMarker([s.lat, s.lon], {
         radius: sel ? 10 : v === 1 ? 8 : v === -1 ? 5 : 6,
-        color: sel ? ink : v === 1 ? like : paper,
-        weight: sel || v === 1 ? 3 : 1.5,
+        color: sel ? ink : v === 1 ? like : s.added ? ink : paper,
+        weight: sel || v === 1 ? 3 : s.added ? 2 : 1.5,
         fillColor: colorOf(s.kind),
         fillOpacity: v === -1 && !sel ? 0.35 : 0.95,
+        dashArray: s.added && !sel && v !== 1 ? '3 3' : null,
         bubblingMouseEvents: false,
       }).on('click', () => openSpot(s.id)).addTo(markerLayer);
     }
@@ -1216,18 +1541,20 @@ function raccoonSVG(scale, mood, holding) {
     switch (state.phase) {
       case 'idle': return '';
       case 'locating': return 'Finding your location…';
-      case 'loading': return state.radius === RADII[0]
-        ? `Loading spots within ${km(state.radius)} of ${state.place}. This can take up to 30 seconds.`
-        : `The full area was too much for the servers, so trying ${km(state.radius)}…`;
+      case 'loading': return `Loading spots around ${state.place}. The first time can take up to 30 seconds; after that the area is saved on your phone.`;
       case 'error': return 'Couldn’t load data from OpenStreetMap.';
     }
     const v = visible(), total = state.spots.length;
-    if (!total) return `Nothing mapped within ${km(state.radius)} of ${state.place}.`;
-    if (!v.length) return 'No spots match these filters.';
-    const liked = v.filter(s => myVote(s.id) === 1).length;
-    let text = `${v.length} ${v.length === 1 ? 'spot' : 'spots'} within ${km(state.radius)} of ${state.place}`;
-    text += liked ? `, ${liked} liked.` : '.';
-    if (state.place === 'Zurich centre') text += ' Tap Locate me to search around you.';
+    let text;
+    if (!total) text = `Nothing mapped within ${km(SEARCH_RADIUS)} of ${state.place}.`;
+    else if (!v.length) text = 'No spots match these filters.';
+    else {
+      const liked = v.filter(s => myVote(s.id) === 1).length;
+      text = `${v.length} ${v.length === 1 ? 'spot' : 'spots'} within ${km(SEARCH_RADIUS)} of ${state.place}${liked ? `, ${liked} liked` : ''}.`;
+    }
+    if (state.pending) text += ' Still loading part of the area…';
+    else if (state.failedN) text += ' Part of the area couldn’t load.';
+    else if (state.place === 'Zurich centre') text += ' Tap Locate me to search around you.';
     return text;
   }
 
@@ -1237,9 +1564,9 @@ function raccoonSVG(scale, mood, holding) {
     $('#status').textContent = statusText();
     const toggle = $('#panelToggle');
     toggle.textContent = state.mode === 'peek' ? 'Show list' : state.mode === 'list' ? 'Hide list' : 'Close';
-    if (state.mode === 'raccoon') {
+    if (state.mode === 'raccoon' || state.mode === 'add') {
       toggle.hidden = false;
-      $('#panelBody').innerHTML = raccoonHTML();
+      $('#panelBody').innerHTML = state.mode === 'raccoon' ? raccoonHTML() : addHTML();
       return;
     }
     toggle.hidden = state.phase === 'idle' || state.phase === 'locating';
@@ -1362,6 +1689,40 @@ function raccoonSVG(scale, mood, holding) {
     </div>`;
   }
 
+  function addHTML() {
+    const a = state.add;
+    const left = GAME.addsPerDay - addsToday(added, Date.now());
+    const seg = (act, value, label, cur) =>
+      `<button class="segbtn" type="button" data-act="${act}" data-v="${value}" aria-pressed="${cur === value}">${label}</button>`;
+    if (a.done) {
+      const rec = added.find(x => x.id === a.done);
+      const note = rec ? `https://www.openstreetmap.org/note/new#map=19/${rec.lat.toFixed(6)}/${rec.lon.toFixed(6)}` : '#';
+      return `<div class="detail">
+        <div class="detail-nav"><button class="link-btn" type="button" data-act="back">Back to list</button></div>
+        <div class="checkin rare"><div class="reveal"><span class="snack" aria-hidden="true">📍</span>
+          <span class="reveal-text"><strong>New ${a.kind === 'table' ? 'picnic table' : 'bench'} added!</strong>
+          <span>${esc(game.name || 'Your raccoon')} gets ${GAME.addReward} snacks and has now eaten ${game.total}.</span></span></div></div>
+        <p class="fine">The pin is saved on this phone for now. Telling OpenStreetMap about it puts it on the map for everyone.</p>
+        <div class="actions">
+          <button type="button" class="go" data-act="openAdded">Open it</button>
+          <a href="${note}" target="_blank" rel="noopener">Tell OpenStreetMap</a>
+        </div>
+      </div>`;
+    }
+    return `<div class="detail">
+      <div class="detail-nav"><button class="link-btn" type="button" data-act="back">Back to list</button></div>
+      <h2 class="add-title">Add a missing bench</h2>
+      <p class="fine">Stand right next to it, then tap Add. The pin goes where you’re standing, and ${esc(game.name || 'your raccoon')} gets ${GAME.addReward} snacks.</p>
+      <p class="field-label">What is it?</p>
+      <div class="seg" role="group" aria-label="Type">${seg('addKind', 'bench', 'Bench', a.kind)}${seg('addKind', 'table', 'Picnic table', a.kind)}</div>
+      ${a.kind === 'bench' ? `<p class="field-label">Does it have a backrest?</p>
+      <div class="seg" role="group" aria-label="Backrest">${seg('addBack', 'yes', 'Yes', a.backrest)}${seg('addBack', 'no', 'No', a.backrest)}${seg('addBack', '', 'Not sure', a.backrest)}</div>` : ''}
+      <button class="ck-btn" type="button" data-act="addHere"${a.busy || left <= 0 ? ' disabled' : ''}>${a.busy ? 'Checking your location…' : 'Add it here'}</button>
+      <p class="ck-msg">${esc(a.msg || (left <= 0 ? `That’s ${GAME.addsPerDay} new pins today, the daily limit. Come back tomorrow.` : `${left} of ${GAME.addsPerDay} new pins left today.${TEST ? ' Test mode: the pin goes at the map centre.' : ''}`))}</p>
+      ${a.near ? '<div class="actions"><button type="button" class="plain" data-act="openNear">Open the mapped one</button></div>' : ''}
+    </div>`;
+  }
+
   function detailHTML(s) {
     const mv = myVote(s.id);
     const canV = s.kind === 'toilet' || canVote(game, s.id, Date.now());
@@ -1374,7 +1735,7 @@ function raccoonSVG(scale, mood, holding) {
         <button class="link-btn" type="button" data-act="back">Back to list</button>
         <span class="dist">${fmtDist(s.dist)} away</span>
       </div>
-      <p class="kind"><span class="dot" style="--c:${colorOf(s.kind)}" aria-hidden="true"></span>${KIND_LABEL[s.kind]}</p>
+      <p class="kind"><span class="dot" style="--c:${colorOf(s.kind)}" aria-hidden="true"></span>${KIND_LABEL[s.kind]}${s.added ? ', added by you' : ''}</p>
       ${summaryHTML(s.text, true)}
       ${checkinHTML(s)}
       <div class="votes" role="group" aria-label="Your vote">
@@ -1384,8 +1745,11 @@ function raccoonSVG(scale, mood, holding) {
       <p class="fine">${canV ? 'Votes are saved on this device for now.' : `Check in here to vote. Voting stays open for ${GAME.voteWindowHours} hours after a check-in.`}</p>
       <div class="actions">
         <a class="go" href="${dir}" target="_blank" rel="noopener">Directions by bike</a>
-        <a href="${osm}" target="_blank" rel="noopener">Open in OpenStreetMap</a>
-        <a href="${gone}" target="_blank" rel="noopener">Report as gone</a>
+        ${s.added
+          ? `<a href="${gone}" target="_blank" rel="noopener">Tell OpenStreetMap</a>
+             <button type="button" class="plain" data-act="removeAdded">Remove my pin</button>`
+          : `<a href="${osm}" target="_blank" rel="noopener">Open in OpenStreetMap</a>
+             <a href="${gone}" target="_blank" rel="noopener">Report as gone</a>`}
       </div>
       <details class="measured-box">
         <summary>Measured from OpenStreetMap</summary>
@@ -1471,6 +1835,74 @@ function raccoonSVG(scale, mood, holding) {
     }, { enableHighAccuracy: true, timeout: 15000, maximumAge: 10000 });
   }
 
+  function placeNewPin(lat, lon) {
+    const a = state.add, now = Date.now();
+    const nearest = state.spots
+      .filter(s => s.kind !== 'toilet')
+      .map(s => ({ s, d: metres(lat, lon, s.lat, s.lon) }))
+      .sort((x, y) => x.d - y.d)[0];
+    if (nearest && nearest.d < GAME.addMinGap) {
+      a.msg = `There’s already a ${nearest.s.kind === 'table' ? 'picnic table' : 'bench'} mapped ${fmtDist(nearest.d)} from you. It’s probably this one.`;
+      a.near = nearest.s.id;
+      renderPanel();
+      return;
+    }
+    const tags = a.kind === 'bench' && a.backrest ? { backrest: a.backrest } : {};
+    const rec = { id: 'user/' + now, kind: a.kind, lat: +lat.toFixed(6), lon: +lon.toFixed(6), tags, t: now };
+    added.push(rec);
+    saveAdded();
+    applyAdd(game, rec, now);
+    saveGame();
+    updateRaccoonButton();
+    a.done = rec.id;
+    a.msg = '';
+    a.near = null;
+    refresh();
+  }
+
+  function addHere() {
+    const a = state.add;
+    if (a.busy) return;
+    if (addsToday(added, Date.now()) >= GAME.addsPerDay) { renderPanel(); return; }
+    a.msg = '';
+    a.near = null;
+    if (TEST) {
+      const c = map.getCenter();
+      placeNewPin(c.lat, c.lng);
+      return;
+    }
+    if (!('geolocation' in navigator)) {
+      a.msg = 'This browser can’t share your location, so adding isn’t possible.';
+      renderPanel();
+      return;
+    }
+    a.busy = true;
+    renderPanel();
+    navigator.geolocation.getCurrentPosition(pos => {
+      a.busy = false;
+      const { latitude, longitude, accuracy } = pos.coords;
+      drawUser({ lat: latitude, lon: longitude }, accuracy);
+      if (accuracy > GAME.addMaxAccuracy) {
+        a.msg = `Your location is only accurate to about ${Math.round(accuracy)} m, and a new pin needs ${GAME.addMaxAccuracy} m or better. Try again from a more open spot.`;
+        renderPanel();
+        return;
+      }
+      if (!state.center || metres(latitude, longitude, state.center.lat, state.center.lon) > SEARCH_RADIUS - 100 || state.phase !== 'ready') {
+        a.msg = 'Updating the map around you first, so new pins don’t duplicate mapped ones. Tap Add again in a moment.';
+        map.setView([latitude, longitude], Math.max(map.getZoom(), 16), { animate: false });
+        showAround({ lat: latitude, lon: longitude }, 'you');
+        return;
+      }
+      placeNewPin(latitude, longitude);
+    }, err => {
+      a.busy = false;
+      a.msg = err.code === 1
+        ? 'Location access is blocked for this page, so adding isn’t possible.'
+        : 'Couldn’t get your location. Try again in a moment.';
+      renderPanel();
+    }, { enableHighAccuracy: true, timeout: 15000, maximumAge: 5000 });
+  }
+
   function closeOverlay() {
     state.selected = null;
     state.reveal = null;
@@ -1486,6 +1918,35 @@ function raccoonSVG(scale, mood, holding) {
       openSpot(el.dataset.id);
     } else if (act === 'back') {
       closeOverlay();
+    } else if (act === 'addKind') {
+      state.add.kind = el.dataset.v;
+      renderPanel();
+    } else if (act === 'addBack') {
+      state.add.backrest = el.dataset.v;
+      renderPanel();
+    } else if (act === 'addHere') {
+      addHere();
+    } else if (act === 'openAdded') {
+      const id = state.add.done;
+      state.add.done = null;
+      openSpot(id);
+    } else if (act === 'openNear') {
+      const id = state.add.near;
+      state.add.near = null;
+      state.add.msg = '';
+      openSpot(id);
+    } else if (act === 'removeAdded') {
+      const s = selectedSpot();
+      if (!s || !s.added) return;
+      if (!confirm(`Remove this pin? Your raccoon gives back its ${GAME.addReward} snacks.`)) return;
+      added = added.filter(a => a.id !== s.id);
+      saveAdded();
+      undoAdd(game, s.id);
+      saveGame();
+      updateRaccoonButton();
+      state.selected = null;
+      state.mode = wide.matches ? 'peek' : 'list';
+      refresh();
     } else if (act === 'checkin') {
       const s = selectedSpot();
       if (s) checkIn(s);
@@ -1500,7 +1961,7 @@ function raccoonSVG(scale, mood, holding) {
       state.shown += PAGE;
       renderPanel();
     } else if (act === 'retry') {
-      search(state.center, state.place);
+      showAround(state.center, state.place);
     } else if (act === 'vote') {
       const s = selectedSpot();
       if (!s || el.disabled) return;
@@ -1537,7 +1998,17 @@ function raccoonSVG(scale, mood, holding) {
   }));
 
   document.addEventListener('keydown', e => {
-    if (e.key === 'Escape' && (state.mode === 'detail' || state.mode === 'raccoon')) closeOverlay();
+    if (e.key === 'Escape' && ['detail', 'raccoon', 'add'].includes(state.mode)) closeOverlay();
+  });
+
+  $('#addBtn').addEventListener('click', () => {
+    if (state.mode === 'add') { closeOverlay(); return; }
+    state.selected = null;
+    state.reveal = null;
+    state.add = { kind: 'bench', backrest: '', msg: '', near: null, done: null, busy: false };
+    setMode('add');
+    renderMarkers();
+    $('#panelBody').scrollTop = 0;
   });
 
   $('#raccoonBtn').addEventListener('click', () => {
@@ -1554,7 +2025,7 @@ function raccoonSVG(scale, mood, holding) {
 
   $('#searchHere').addEventListener('click', () => {
     const c = map.getCenter();
-    search({ lat: c.lat, lon: c.lng }, 'the map centre');
+    showAround({ lat: c.lat, lon: c.lng }, 'the map centre');
   });
 
   function drawUser(c, accuracy) {
@@ -1567,7 +2038,7 @@ function raccoonSVG(scale, mood, holding) {
 
   function locate(auto) {
     if (!('geolocation' in navigator)) {
-      if (auto) search(ZURICH, 'Zurich centre');
+      if (auto) showAround(ZURICH, 'Zurich centre');
       else $('#status').textContent = 'This browser can’t share your location. Move the map and tap Search this area.';
       return;
     }
@@ -1581,11 +2052,11 @@ function raccoonSVG(scale, mood, holding) {
       const c = { lat: pos.coords.latitude, lon: pos.coords.longitude };
       drawUser(c, pos.coords.accuracy);
       map.setView([c.lat, c.lon], 16, { animate: false });
-      search(c, 'you');
+      showAround(c, 'you');
     }, err => {
       $('#locate').disabled = false;
       const why = err.code === 1 ? 'Location access is blocked for this page.' : 'Your location isn’t available right now.';
-      if (auto) search(ZURICH, 'Zurich centre');
+      if (auto) showAround(ZURICH, 'Zurich centre');
       else $('#status').textContent = `${why} Move the map and tap Search this area instead.`;
     }, { enableHighAccuracy: true, timeout: 10000, maximumAge: 60000 });
   }
