@@ -1269,28 +1269,39 @@ const STAGES = [
   { at: 100, label: 'Magnificently round', scale: 1.36 },
 ];
 
-// Ten raccoons to choose from. Same body, different fur and one distinguishing feature.
+// Ten raccoons to choose from. Each has its own body, ears, tail, eyes and a few signature details.
+// The head stays the same size on all of them, so every trinket fits every raccoon.
 const RACCOONS = [
-  { id: 'pip', name: 'Pip', line: 'Always first to the crumbs.', feature: 'none',
-    fur: '#9C968F', tail: '#B3ADA6', band: '#5F5A55', mask: '#2E2A28', light: '#F2EEE7', belly: '#E4DED5', paw: '#3A3633' },
-  { id: 'rusty', name: 'Rusty', line: 'Smells a croissant from a kilometre away.', feature: 'freckles',
-    fur: '#B9764A', tail: '#D19A70', band: '#7A4527', mask: '#3B2418', light: '#F6E8DA', belly: '#EBD3BD', paw: '#4A2E1F' },
-  { id: 'midnight', name: 'Midnight', line: 'Sneaks up on picnics without a sound.', feature: 'whiteSocks',
-    fur: '#4F4B47', tail: '#77726C', band: '#26231F', mask: '#161412', light: '#E8E4DE', belly: '#A39E97', paw: '#EDE9E3' },
-  { id: 'biscuit', name: 'Biscuit', line: 'Will trade anything for a cookie.', feature: 'pinkNose',
-    fur: '#D3BC96', tail: '#E6D6B8', band: '#9B8461', mask: '#6E5A3E', light: '#FBF6EC', belly: '#F2E6D0', paw: '#7D6748' },
-  { id: 'fluff', name: 'Fluff', line: 'Mostly fur, partly appetite.', feature: 'fluffyCheeks',
-    fur: '#B4AFA8', tail: '#CDC8C1', band: '#6F6A64', mask: '#38342F', light: '#F7F4EF', belly: '#ECE7E0', paw: '#47423D' },
-  { id: 'hazel', name: 'Hazel', line: 'Knows every shortcut through the park.', feature: 'earTufts',
-    fur: '#8B6E55', tail: '#A88C72', band: '#4F3B2B', mask: '#2A1F17', light: '#F1E8DE', belly: '#DCCBB8', paw: '#35281E' },
-  { id: 'pepper', name: 'Pepper', line: 'Collects anything that glitters.', feature: 'thinStripes',
-    fur: '#A3A7AB', tail: '#C8CBCE', band: '#4B4F54', mask: '#25282B', light: '#F4F5F6', belly: '#DFE2E4', paw: '#33363A' },
-  { id: 'sage', name: 'Sage', line: 'Prefers benches with a view.', feature: 'blaze',
-    fur: '#8E9585', tail: '#AAB0A1', band: '#545A4C', mask: '#2C3027', light: '#F1F2EC', belly: '#DADDD2', paw: '#383C33' },
-  { id: 'coco', name: 'Coco', line: 'Naps in the shade after every meal.', feature: 'roundEars',
-    fur: '#6B4E3D', tail: '#8A6A56', band: '#3B2A20', mask: '#1F1612', light: '#EFE4DA', belly: '#C9B2A1', paw: '#2A1E18' },
-  { id: 'nimbus', name: 'Nimbus', line: 'Cloud-soft and impossible to ignore.', feature: 'bigTail',
-    fur: '#DDD8D1', tail: '#F0ECE6', band: '#A9A39B', mask: '#7C766E', light: '#FFFFFF', belly: '#F6F3EE', paw: '#8E8880' },
+  { id: 'pip', name: 'Pip', line: 'Always first to the crumbs.',
+    body: 'classic', ears: 'classic', tail: 'classic', eyes: 'normal', extras: ['cowlick'],
+    fur: '#9C968F', tail2: '#B3ADA6', band: '#5F5A55', mask: '#2E2A28', light: '#F2EEE7', belly: '#E4DED5', paw: '#3A3633' },
+  { id: 'rusty', name: 'Rusty', line: 'Smells a croissant from a kilometre away.',
+    body: 'classic', ears: 'pointy', tail: 'bushy', eyes: 'amber', extras: ['freckles'],
+    fur: '#B9764A', tail2: '#D19A70', band: '#7A4527', mask: '#3B2418', light: '#F6E8DA', belly: '#EBD3BD', paw: '#4A2E1F' },
+  { id: 'midnight', name: 'Midnight', line: 'Sneaks up on picnics without a sound.',
+    body: 'slim', ears: 'classic', tail: 'thin', eyes: 'sleepy', extras: ['crescent', 'socks'],
+    fur: '#4F4B47', tail2: '#77726C', band: '#26231F', mask: '#161412', light: '#E8E4DE', belly: '#A39E97', paw: '#2A2725' },
+  { id: 'biscuit', name: 'Biscuit', line: 'Will trade anything for a cookie.',
+    body: 'chubby', ears: 'round', tail: 'classic', eyes: 'normal', extras: ['pinkNose', 'blush'],
+    fur: '#D3BC96', tail2: '#E6D6B8', band: '#9B8461', mask: '#6E5A3E', light: '#FBF6EC', belly: '#F2E6D0', paw: '#7D6748' },
+  { id: 'fluff', name: 'Fluff', line: 'Mostly fur, partly appetite.',
+    body: 'classic', ears: 'classic', tail: 'bushy', eyes: 'normal', extras: ['mane', 'spiky'],
+    fur: '#B4AFA8', tail2: '#D6D1CA', band: '#6F6A64', mask: '#38342F', light: '#F7F4EF', belly: '#ECE7E0', paw: '#47423D' },
+  { id: 'hazel', name: 'Hazel', line: 'Knows every shortcut through the park.',
+    body: 'slim', ears: 'tufts', tail: 'broad', eyes: 'lashes', extras: [],
+    fur: '#8B6E55', tail2: '#A88C72', band: '#4F3B2B', mask: '#2A1F17', light: '#F1E8DE', belly: '#DCCBB8', paw: '#35281E' },
+  { id: 'pepper', name: 'Pepper', line: 'Collects anything that glitters.',
+    body: 'classic', ears: 'floppy', tail: 'thin', eyes: 'normal', extras: ['speckles', 'earring'],
+    fur: '#A3A7AB', tail2: '#C8CBCE', band: '#4B4F54', mask: '#25282B', light: '#F4F5F6', belly: '#DFE2E4', paw: '#33363A' },
+  { id: 'sage', name: 'Sage', line: 'Old, wise and very picky about views.',
+    body: 'classic', ears: 'classic', tail: 'broad', eyes: 'normal', extras: ['blaze', 'brows', 'whiskers'],
+    fur: '#8E9585', tail2: '#AAB0A1', band: '#545A4C', mask: '#2C3027', light: '#F1F2EC', belly: '#DADDD2', paw: '#383C33' },
+  { id: 'coco', name: 'Coco', line: 'Grins at every single snack.',
+    body: 'chubby', ears: 'classic', tail: 'classic', eyes: 'normal', extras: ['teeth', 'heartBelly', 'curl'],
+    fur: '#6B4E3D', tail2: '#8A6A56', band: '#3B2A20', mask: '#1F1612', light: '#EFE4DA', belly: '#C9B2A1', paw: '#2A1E18' },
+  { id: 'nimbus', name: 'Nimbus', line: 'Small, cloud-soft and impossible to ignore.',
+    body: 'tiny', ears: 'round', tail: 'bushy', eyes: 'sparkle', extras: ['pinkPaws'],
+    fur: '#DDD8D1', tail2: '#F0ECE6', band: '#A9A39B', mask: '#7C766E', light: '#FFFFFF', belly: '#F6F3EE', paw: '#8E8880' },
 ];
 const raccoonById = id => RACCOONS.find(r => r.id === id) || RACCOONS[0];
 
@@ -1525,79 +1536,148 @@ function trinketSVG(id) {
 // opts: { scale, mood, holding, look, worn: {head, face, neck}, viewBox }
 function raccoonSVG(opts) {
   const o = Object.assign({ scale: 1, mood: 'content', holding: '', look: RACCOONS[0], worn: {}, viewBox: '0 0 220 200' }, opts);
-  const L = o.look, scale = o.scale, mood = o.mood, f = L.feature;
+  const L = o.look, scale = o.scale, mood = o.mood;
+  const x = new Set(L.extras || []);
   const pupil = '#1F1C1A';
-  const bx = 110, rx = 50 * scale, ry = 38 + (scale - 1) * 14;
-  const tailPts = f === 'thinStripes'
-    ? [[184, 92], [181, 101], [177, 110], [172, 119], [166, 127], [159, 135], [152, 143], [144, 151], [136, 158]]
-    : [[183, 95], [179, 108], [173, 121], [165, 133], [156, 145], [146, 156]];
-  const trx = f === 'bigTail' ? 19 : f === 'thinStripes' ? 14 : 15;
-  const try_ = f === 'bigTail' ? 16 : f === 'thinStripes' ? 10 : 13;
-  const tail = tailPts.map(([x, y], i) =>
-    `<ellipse cx="${f === 'bigTail' ? x + 4 : x}" cy="${y}" rx="${trx}" ry="${try_}" transform="rotate(-55 ${x} ${y})" fill="${i % 2 === 0 ? L.band : L.tail}"/>`).join('');
-  const footCol = f === 'whiteSocks' ? L.light : L.paw;
-  const ears = f === 'roundEars'
-    ? `<circle cx="80" cy="50" r="13" fill="${L.fur}"/><circle cx="80" cy="51" r="7" fill="${L.paw}"/>
-       <circle cx="140" cy="50" r="13" fill="${L.fur}"/><circle cx="140" cy="51" r="7" fill="${L.paw}"/>`
-    : `<ellipse cx="79" cy="45" rx="13" ry="17" transform="rotate(-25 79 45)" fill="${L.fur}"/>
-       <ellipse cx="79" cy="47" rx="7" ry="10" transform="rotate(-25 79 47)" fill="${L.paw}"/>
-       <ellipse cx="141" cy="45" rx="13" ry="17" transform="rotate(25 141 45)" fill="${L.fur}"/>
-       <ellipse cx="141" cy="47" rx="7" ry="10" transform="rotate(25 141 47)" fill="${L.paw}"/>
-       ${f === 'earTufts' ? `<path d="M68 33 l-3 -10 l9 7 z M152 33 l3 -10 l-9 7 z" fill="${L.band}"/>` : ''}`;
-  const cheeks = f === 'fluffyCheeks'
-    ? `<path d="M58 92 l-8 4 l8 3 l-7 5 l9 1 l2 6 c6 2 14 -2 16 -8 c2 -8 -4 -14 -12 -14 z" fill="${L.tail}"/>
-       <path d="M162 92 l8 4 l-8 3 l7 5 l-9 1 l-2 6 c-6 2 -14 -2 -16 -8 c-2 -8 4 -14 12 -14 z" fill="${L.tail}"/>`
-    : `<ellipse cx="70" cy="96" rx="12" ry="10" fill="${L.tail}"/><ellipse cx="150" cy="96" rx="12" ry="10" fill="${L.tail}"/>`;
-  const stripe = f === 'blaze' ? `<ellipse cx="110" cy="60" rx="5" ry="15" fill="${L.light}"/>` : `<ellipse cx="110" cy="58" rx="6" ry="14" fill="${L.band}"/>`;
-  const nose = f === 'pinkNose' ? '#D9798B' : L.mask;
-  const freckles = f === 'freckles'
-    ? [[100, 100], [97, 104], [103, 105], [120, 100], [123, 104], [117, 105]].map(([x, y]) => `<circle cx="${x}" cy="${y}" r="1.3" fill="${L.band}"/>`).join('')
-    : '';
+  const bx = 110;
+
+  // Body shape
+  const B = { classic: [50, 38, 146], chubby: [57, 41, 147], slim: [43, 43, 144], tiny: [42, 32, 152] }[L.body] || [50, 38, 146];
+  const rx = B[0] * scale, ry = B[1] + (scale - 1) * 14, by = B[2];
+  const footY = by + ry - 2;
+  const pawCol = x.has('socks') ? L.light : x.has('pinkPaws') ? '#E8B4BC' : L.paw;
+
+  // Tail
+  const T = {
+    classic: { pts: [[183, 95], [179, 108], [173, 121], [165, 133], [156, 145], [146, 156]], r: [15, 13] },
+    bushy: { pts: [[188, 90], [184, 104], [177, 118], [168, 131], [158, 143], [147, 155]], r: [20, 17] },
+    thin: { pts: [[184, 92], [181, 101], [177, 110], [172, 119], [166, 127], [159, 135], [152, 143], [144, 151], [136, 158]], r: [13, 9] },
+    broad: { pts: [[183, 97], [176, 116], [165, 133], [151, 149]], r: [17, 16] },
+  }[L.tail] || null;
+  const tail = T.pts.map(([px, py], i) =>
+    `<ellipse cx="${px}" cy="${py}" rx="${T.r[0]}" ry="${T.r[1]}" transform="rotate(-55 ${px} ${py})" fill="${i % 2 === 0 ? L.band : L.tail2}"/>`).join('');
+
+  // Ears
+  const classicEar = (cx, rot) => `<ellipse cx="${cx}" cy="45" rx="13" ry="17" transform="rotate(${rot} ${cx} 45)" fill="${L.fur}"/>
+    <ellipse cx="${cx}" cy="47" rx="7" ry="10" transform="rotate(${rot} ${cx} 47)" fill="${L.paw}"/>`;
+  let ears;
+  if (L.ears === 'pointy') {
+    ears = [[76, -18], [144, 18]].map(([cx, r]) => `
+      <ellipse cx="${cx}" cy="40" rx="11" ry="22" transform="rotate(${r} ${cx} 40)" fill="${L.fur}"/>
+      <ellipse cx="${cx}" cy="43" rx="5.5" ry="13" transform="rotate(${r} ${cx} 43)" fill="${L.paw}"/>
+      <ellipse cx="${cx + (r < 0 ? -6 : 6)}" cy="22" rx="5" ry="6" transform="rotate(${r} ${cx + (r < 0 ? -6 : 6)} 22)" fill="${L.band}"/>`).join('');
+  } else if (L.ears === 'round') {
+    ears = `<circle cx="80" cy="51" r="12" fill="${L.fur}"/><circle cx="80" cy="52" r="6.5" fill="${L.paw}"/>
+      <circle cx="140" cy="51" r="12" fill="${L.fur}"/><circle cx="140" cy="52" r="6.5" fill="${L.paw}"/>`;
+  } else if (L.ears === 'floppy') {
+    // Left ear up, right ear flopped over sideways
+    ears = classicEar(79, -25) + `
+      <ellipse cx="149" cy="54" rx="12" ry="17" transform="rotate(68 149 54)" fill="${L.fur}"/>
+      <ellipse cx="150" cy="54" rx="6.5" ry="10" transform="rotate(68 150 54)" fill="${L.paw}"/>`;
+  } else {
+    ears = classicEar(79, -25) + classicEar(141, 25) +
+      (L.ears === 'tufts' ? `<path d="M68 33 l-4 -13 l11 9 z M152 33 l4 -13 l-11 9 z" fill="${L.band}"/>` : '');
+  }
+
+  // Fluffy ruff around the face: a ring of soft scallops behind the head
+  const mane = x.has('mane') ? Array.from({ length: 20 }, (_, i) => {
+    const a = (i / 20) * Math.PI * 2;
+    return `<circle cx="${(110 + Math.cos(a) * 47).toFixed(1)}" cy="${(86 + Math.sin(a) * 40).toFixed(1)}" r="11" fill="${L.tail2}"/>`;
+  }).join('') : '';
+
+  // Head-top details (hats cover them, which is fine)
+  let top = '';
+  if (x.has('cowlick')) top += `<path d="M104 47 q-3 -9 3 -13 M110 46 q0 -11 7 -13 M116 47 q4 -8 9 -8" stroke="${L.fur}" stroke-width="4.5" fill="none" stroke-linecap="round"/>`;
+  if (x.has('spiky')) top += `<path d="M98 50 l3 -15 l6 11 l3 -16 l3 16 l6 -11 l3 15 z" fill="${L.fur}"/>`;
+  if (x.has('curl')) top += `<path d="M110 46 c-1 -9 10 -11 10 -3 c0 5 -7 5 -6 0" stroke="${L.fur}" stroke-width="4" fill="none" stroke-linecap="round"/>`;
+
+  // Forehead
+  let forehead = `<ellipse cx="110" cy="58" rx="6" ry="14" fill="${L.band}"/>`;
+  if (x.has('blaze')) forehead = `<ellipse cx="110" cy="60" rx="5" ry="15" fill="${L.light}"/>`;
+  if (x.has('crescent')) forehead = `<path d="M103 52 a8 8 0 1 0 14 0 a6.5 6.5 0 1 1 -14 0 z" fill="${L.light}"/>`;
+  const brows = x.has('brows')
+    ? `<path d="M73 66 q13 -9 26 -2 M121 64 q13 -7 26 2" stroke="${L.light}" stroke-width="6" fill="none" stroke-linecap="round"/>` : '';
+
+  // Eyes, by mood and eye style
+  const style = L.eyes || 'normal';
+  const lashes = style === 'lashes'
+    ? `<path d="M80 72 l-4 -4 M83 70 l-2 -5 M140 72 l4 -4 M137 70 l2 -5" stroke="${L.light}" stroke-width="2" stroke-linecap="round"/>` : '';
   let eyes, mouth;
   if (mood === 'happy') {
-    eyes = `<path d="M81 80 q7 -7 14 0 M125 80 q7 -7 14 0" stroke="${L.light}" stroke-width="3" fill="none" stroke-linecap="round"/>`;
+    eyes = `<path d="M81 80 q7 -7 14 0 M125 80 q7 -7 14 0" stroke="${L.light}" stroke-width="3" fill="none" stroke-linecap="round"/>` + lashes;
     mouth = `<path d="M100 101 q10 9 20 0" stroke="${L.mask}" stroke-width="2.5" fill="none" stroke-linecap="round"/>`;
-  } else if (mood === 'hungry') {
-    eyes = `<circle cx="88" cy="78" r="7" fill="${L.light}"/><circle cx="132" cy="78" r="7" fill="${L.light}"/>
-      <circle cx="88" cy="76" r="4.2" fill="${pupil}"/><circle cx="132" cy="76" r="4.2" fill="${pupil}"/>
-      <circle cx="89.5" cy="74.5" r="1.4" fill="#fff"/><circle cx="133.5" cy="74.5" r="1.4" fill="#fff"/>`;
-    mouth = `<ellipse cx="110" cy="104" rx="3.5" ry="4" fill="${L.mask}"/>`;
   } else {
-    eyes = `<circle cx="88" cy="78" r="5.5" fill="${L.light}"/><circle cx="132" cy="78" r="5.5" fill="${L.light}"/>
-      <circle cx="88" cy="78.5" r="3.2" fill="${pupil}"/><circle cx="132" cy="78.5" r="3.2" fill="${pupil}"/>
-      <circle cx="89.2" cy="77.3" r="1.1" fill="#fff"/><circle cx="133.2" cy="77.3" r="1.1" fill="#fff"/>`;
-    if (mood === 'peckish') {
-      eyes += `<path d="M81 72 l12 3 M139 72 l-12 3" stroke="${L.light}" stroke-width="2.2" stroke-linecap="round"/>`;
-      mouth = `<path d="M103 102 h14" stroke="${L.mask}" stroke-width="2.5" stroke-linecap="round"/>`;
-    } else {
-      mouth = `<path d="M103 101 q7 5 14 0" stroke="${L.mask}" stroke-width="2.5" fill="none" stroke-linecap="round"/>`;
-    }
+    const big = mood === 'hungry';
+    const r = big ? 7 : style === 'sparkle' ? 6.5 : 5.5;
+    const pr = big ? 4.2 : 3.2;
+    const py = big ? 76 : 78.5;
+    const eye = cx => {
+      let s = `<circle cx="${cx}" cy="78" r="${r}" fill="${L.light}"/>`;
+      if (style === 'amber') s += `<circle cx="${cx}" cy="${py}" r="${pr + 1.3}" fill="#D9932B"/>`;
+      s += `<circle cx="${cx}" cy="${py}" r="${style === 'amber' ? pr - 0.6 : pr}" fill="${pupil}"/>`;
+      s += `<circle cx="${cx + 1.4}" cy="${py - 1.5}" r="${style === 'sparkle' ? 1.8 : 1.2}" fill="#fff"/>`;
+      if (style === 'sparkle') s += `<circle cx="${cx - 1.8}" cy="${py + 1.6}" r="0.9" fill="#fff"/>`;
+      if (style === 'sleepy') s += `<path d="M${cx - r - 1} ${78 - r - 1} h${2 * r + 2} v${r + (big ? -1 : 1)} h-${2 * r + 2} z" fill="${L.mask}"/>
+        <path d="M${cx - r} ${78 + (big ? -1 : 1)} h${2 * r}" stroke="${L.light}" stroke-width="1.4" stroke-linecap="round"/>`;
+      return s;
+    };
+    eyes = eye(88) + eye(132) + lashes;
+    if (mood === 'peckish') eyes += `<path d="M81 70 l12 3 M139 70 l-12 3" stroke="${L.light}" stroke-width="2.2" stroke-linecap="round"/>`;
+    mouth = mood === 'hungry' ? `<ellipse cx="110" cy="104" rx="3.5" ry="4" fill="${L.mask}"/>`
+      : mood === 'peckish' ? `<path d="M103 102 h14" stroke="${L.mask}" stroke-width="2.5" stroke-linecap="round"/>`
+      : `<path d="M103 101 q7 5 14 0" stroke="${L.mask}" stroke-width="2.5" fill="none" stroke-linecap="round"/>`;
   }
-  const snack = o.holding ? `<text x="${bx}" y="150" font-size="26" text-anchor="middle" dominant-baseline="middle">${o.holding}</text>` : '';
+  const teeth = x.has('teeth') && mood !== 'hungry'
+    ? `<rect x="105.2" y="${mood === 'happy' ? 104.5 : 103}" width="4.4" height="5" rx="1.2" fill="#FFFFFF" stroke="${L.band}" stroke-width=".6"/>
+       <rect x="110.4" y="${mood === 'happy' ? 104.5 : 103}" width="4.4" height="5" rx="1.2" fill="#FFFFFF" stroke="${L.band}" stroke-width=".6"/>` : '';
+  const nose = x.has('pinkNose') ? '#D9798B' : L.mask;
+  const freckles = x.has('freckles')
+    ? [[100, 100], [97, 104], [103, 105], [120, 100], [123, 104], [117, 105]].map(([fx, fy]) => `<circle cx="${fx}" cy="${fy}" r="1.3" fill="${L.band}"/>`).join('') : '';
+  const blush = x.has('blush') ? `<ellipse cx="72" cy="97" rx="8" ry="4.5" fill="#E89AA6" opacity=".65"/><ellipse cx="148" cy="97" rx="8" ry="4.5" fill="#E89AA6" opacity=".65"/>` : '';
+  const whiskers = x.has('whiskers')
+    ? `<path d="M91 96 l-22 -4 M91 100 l-22 2 M129 96 l22 -4 M129 100 l22 2" stroke="${L.band}" stroke-width="1.3" stroke-linecap="round"/>` : '';
+  const earring = x.has('earring') ? `<circle cx="70" cy="58" r="3" fill="#E3B43B" stroke="#B8860B" stroke-width="1"/>` : '';
+  const speckles = x.has('speckles')
+    ? [[-34, -18], [-38, 4], [-26, 22], [32, -16], [38, 6], [26, 24], [-14, -30], [16, -30]].map(([dx, dy]) =>
+      `<circle cx="${bx + dx * scale}" cy="${by + dy}" r="2.2" fill="${L.band}" opacity=".45"/>`).join('') : '';
+  const bellyW = 31 * scale * (L.body === 'chubby' ? 1.12 : L.body === 'slim' || L.body === 'tiny' ? 0.88 : 1);
+  const bellyH = 26 + (scale - 1) * 10 - (L.body === 'tiny' ? 5 : 0);
+  const belly = x.has('heartBelly')
+    ? `<path d="M${bx} ${by + 26} C ${bx - bellyW * 1.3} ${by + 4}, ${bx - bellyW * 0.9} ${by - 22}, ${bx} ${by - 8} C ${bx + bellyW * 0.9} ${by - 22}, ${bx + bellyW * 1.3} ${by + 4}, ${bx} ${by + 26} Z" fill="${L.belly}"/>`
+    : `<ellipse cx="${bx}" cy="${by + 7}" rx="${bellyW}" ry="${bellyH}" fill="${L.belly}"/>`;
+  const snack = o.holding ? `<text x="${bx}" y="${by + 4}" font-size="26" text-anchor="middle" dominant-baseline="middle">${o.holding}</text>` : '';
   const worn = o.worn || {};
   return `<svg viewBox="${o.viewBox}" role="img" aria-label="${L.name}, ${mood}">
     ${tail}
-    <ellipse cx="${bx - 28 * scale}" cy="184" rx="13" ry="7" fill="${footCol}"/>
-    <ellipse cx="${bx + 28 * scale}" cy="184" rx="13" ry="7" fill="${footCol}"/>
-    <ellipse cx="${bx}" cy="146" rx="${rx}" ry="${ry}" fill="${L.fur}"/>
-    <ellipse cx="${bx}" cy="153" rx="${31 * scale}" ry="${26 + (scale - 1) * 10}" fill="${L.belly}"/>
+    <ellipse cx="${bx - 28 * scale}" cy="${footY}" rx="13" ry="7" fill="${pawCol}"/>
+    <ellipse cx="${bx + 28 * scale}" cy="${footY}" rx="13" ry="7" fill="${pawCol}"/>
+    <ellipse cx="${bx}" cy="${by}" rx="${rx}" ry="${ry}" fill="${L.fur}"/>
+    ${speckles}
+    ${belly}
     ${snack}
-    <ellipse cx="${bx - 24 * scale}" cy="146" rx="7" ry="11" transform="rotate(-25 ${bx - 24 * scale} 146)" fill="${footCol}"/>
-    <ellipse cx="${bx + 24 * scale}" cy="146" rx="7" ry="11" transform="rotate(25 ${bx + 24 * scale} 146)" fill="${footCol}"/>
+    <ellipse cx="${bx - 24 * scale}" cy="${by}" rx="7" ry="11" transform="rotate(-25 ${bx - 24 * scale} ${by})" fill="${pawCol}"/>
+    <ellipse cx="${bx + 24 * scale}" cy="${by}" rx="7" ry="11" transform="rotate(25 ${bx + 24 * scale} ${by})" fill="${pawCol}"/>
+    ${mane}
     ${ears}
+    ${earring}
+    ${top}
     <ellipse cx="110" cy="82" rx="46" ry="38" fill="${L.fur}"/>
-    ${cheeks}
+    <ellipse cx="70" cy="96" rx="12" ry="10" fill="${L.tail2}"/><ellipse cx="150" cy="96" rx="12" ry="10" fill="${L.tail2}"/>
     <ellipse cx="90" cy="63" rx="14" ry="7" fill="${L.light}"/>
     <ellipse cx="130" cy="63" rx="14" ry="7" fill="${L.light}"/>
-    ${stripe}
+    ${forehead}
+    ${brows}
     <ellipse cx="88" cy="79" rx="19" ry="12" fill="${L.mask}"/>
     <ellipse cx="132" cy="79" rx="19" ry="12" fill="${L.mask}"/>
     <ellipse cx="110" cy="78" rx="10" ry="8" fill="${L.mask}"/>
+    ${blush}
     <ellipse cx="110" cy="97" rx="20" ry="14" fill="${L.light}"/>
+    ${whiskers}
     ${freckles}
     <ellipse cx="110" cy="90" rx="6" ry="4.5" fill="${nose}"/>
     ${eyes}
     ${mouth}
+    ${teeth}
     ${worn.neck ? trinketSVG(worn.neck) : ''}
     ${worn.face ? trinketSVG(worn.face) : ''}
     ${worn.head ? trinketSVG(worn.head) : ''}
@@ -2557,8 +2637,7 @@ function stampSVG(stamp, uid) {
   }
 
   function detailHTML(s) {
-    const dir = `https://www.google.com/maps/dir/?api=1&destination=${s.lat},${s.lon}&travelmode=bicycling`;
-    const osm = `https://www.openstreetmap.org/${s.osmType}/${s.osmId}`;
+    const dir = `https://www.google.com/maps/dir/?api=1&destination=${s.lat},${s.lon}&travelmode=walking`;
     const gone = `https://www.openstreetmap.org/note/new#map=19/${s.lat.toFixed(6)}/${s.lon.toFixed(6)}`;
     const rows = measuredRows(s).map(([k, v]) => `<dt>${esc(k)}</dt><dd>${esc(v)}</dd>`).join('');
     return `<div class="detail">
@@ -2571,12 +2650,11 @@ function stampSVG(stamp, uid) {
       ${checkinHTML(s)}
       ${rerateHTML(s)}
       <div class="actions">
-        <a class="go" href="${dir}" target="_blank" rel="noopener">Directions by bike</a>
+        <a class="go" href="${dir}" target="_blank" rel="noopener">Directions</a>
         ${s.added
           ? `<a href="${gone}" target="_blank" rel="noopener">Tell OpenStreetMap</a>
              <button type="button" class="plain" data-act="removeAdded">Remove my pin</button>`
-          : `<a href="${osm}" target="_blank" rel="noopener">Open in OpenStreetMap</a>
-             <a href="${gone}" target="_blank" rel="noopener">Report as gone</a>`}
+          : `<a href="${gone}" target="_blank" rel="noopener">Report as gone</a>`}
       </div>
       <details class="measured-box">
         <summary>Measured from OpenStreetMap</summary>
