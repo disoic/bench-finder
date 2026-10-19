@@ -399,6 +399,10 @@ button { font: inherit; color: inherit; cursor: pointer; }
 .found { margin: 10px 0 0; font-size: 14px; color: var(--ink); }
 .found .link-btn { padding: 0 2px; }
 
+.voted-switch { margin-top: 12px; }
+.list.voted { margin: 0 -16px; border-top: 1px solid var(--line); }
+.tab { font-size: 13.5px; }
+
 /* Wide screens: sidebar on the left, map fills the rest */
 @media (min-width: 900px) {
   .app { display: grid; grid-template-columns: 440px 1fr; grid-template-rows: auto 1fr; }
@@ -1159,7 +1163,8 @@ function fmtDist(d) {
   if (d < 5) return 'under 5 m';
   if (d < 100) return Math.round(d / 5) * 5 + ' m';
   if (d < 1000) return Math.round(d / 10) * 10 + ' m';
-  return (d / 1000).toFixed(1).replace(/\.0$/, '') + ' km';
+  if (d < 10000) return (d / 1000).toFixed(1).replace(/\.0$/, '') + ' km';
+  return Math.round(d / 1000).toLocaleString('en') + ' km';
 }
 
 // Raw measurements, shown when a spot is opened, for checking the rules.
@@ -1363,8 +1368,17 @@ function deriveState(events) {
 }
 
 // Passport stamps: one per town, or per district in big cities, grouped by country.
+// Stamps show the neighbourhood where it's officially mapped, otherwise the district, otherwise the town.
+// Some countries map their finest level too finely for stamps, so it's capped there.
+const PLACE_MAX_LEVEL = { HR: 9 };   // Croatia: level 10 is Zagreb's many small local committees
+function placeParts(place) {
+  const max = PLACE_MAX_LEVEL[place.code] || 10;
+  const sub = (max >= 10 && place.neighbourhood) || place.district || '';
+  return { town: place.town, sub };
+}
 function stampLabel(place) {
-  return place.district ? `${place.town}, ${place.district}` : place.town;
+  const p = placeParts(place);
+  return p.sub ? `${p.town}, ${p.sub}` : p.town;
 }
 function passportOf(visits) {
   const countries = new Map();
@@ -1374,7 +1388,7 @@ function passportOf(visits) {
     const label = stampLabel(e.place);
     if (!countries.has(c)) countries.set(c, new Map());
     const m = countries.get(c);
-    if (!m.has(label)) m.set(label, { label, town: e.place.town, district: e.place.district || '', first: e.t, spots: new Set() });
+    if (!m.has(label)) m.set(label, { label, town: e.place.town, district: placeParts(e.place).sub, first: e.t, spots: new Set() });
     const st = m.get(label);
     st.first = Math.min(st.first, e.t);
     st.spots.add(e.spot || e.id);
@@ -1614,6 +1628,7 @@ function stampSVG(stamp, uid) {
     spots: [], shown: PAGE, selected: null,
     mode: 'peek',           // peek | list | detail | raccoon | add
     rtab: 'raccoon', picking: false, pickSel: null,
+    voteTab: 1, votedList: [], pendingOpen: null, user: null,
     ckMsg: '', checking: false, reveal: null,
     pending: 0, failedN: 0,
     add: { kind: 'bench', backrest: '', msg: '', near: null, done: null, busy: false, step: 'form', fix: null, pin: null },
@@ -1694,7 +1709,10 @@ function stampSVG(stamp, uid) {
   const petName = () => me.name || (me.raccoon ? look().name : 'your raccoon');
 
   function castVote(s, v) {
-    record({ type: 'vote', t: Date.now(), spot: s.id, lat: +s.lat.toFixed(6), lon: +s.lon.toFixed(6), v: myVote(s.id) === v ? 0 : v });
+    record({
+      type: 'vote', t: Date.now(), spot: s.id, lat: +s.lat.toFixed(6), lon: +s.lon.toFixed(6), v: myVote(s.id) === v ? 0 : v,
+      where: s.text.sentence, kind: s.kind,
+    });
   }
   function updateRaccoonButton() {
     $('#snackCount').textContent = me.total;
@@ -1878,9 +1896,17 @@ function stampSVG(stamp, uid) {
     sections.spots.push(...userElements());
     state.spots = analyseSections(sections, state.center, SEARCH_RADIUS);
     linkEvents();
+    if (state.pendingOpen) {
+      const p = state.pendingOpen;
+      const hit = nearestSpot(p.lat, p.lon, 25);
+      if (hit || !state.pending) {
+        state.pendingOpen = null;
+        if (hit) { state.selected = hit.id; state.mode = 'detail'; state.reveal = null; state.ckMsg = ''; }
+      }
+    }
     if (!placesQueued) {
       placesQueued = true;
-      events.filter(e => (e.type === 'checkin' || e.type === 'add') && !e.place && e.lat != null).slice(-8).forEach(queuePlace);
+      events.filter(e => (e.type === 'checkin' || e.type === 'add') && e.lat != null && !(e.place && e.place.v === 2)).slice(-15).forEach(queuePlace);
     }
     state.phase = 'ready';
     if (state.selected && !state.spots.some(s => s.id === state.selected)) {
@@ -1927,31 +1953,52 @@ function stampSVG(stamp, uid) {
     }
   }
 
+  function nearestSpot(lat, lon, within) {
+    let best = null, bd = Infinity;
+    for (const s of state.spots) {
+      for (const mb of s.members) {
+        const d = metres(lat, lon, mb.lat, mb.lon);
+        if (d < bd) { bd = d; best = s; }
+      }
+    }
+    return bd <= within ? best : null;
+  }
+
   /* ---------- passport places ----------
      After each check-in, OpenStreetMap is asked which town (or city district) and country
      the spot is in. Offline check-ins are looked up the next time the app opens. */
   const placeQueue = [];
   let placeBusy = false;
   function queuePlace(ev) {
-    if (ev && !ev.place && ev.lat != null) { placeQueue.push(ev); pumpPlaces(); }
+    if (ev && ev.lat != null && !(ev.place && ev.place.v === 2)) { placeQueue.push(ev); pumpPlaces(); }
   }
+  // Saves the whole chain (country, town, district, neighbourhood). Which one a stamp shows
+  // is decided when it's drawn, so the rule can change later without asking again.
   async function lookupPlace(lat, lon) {
     const json = await overpass(`[out:json][timeout:20];is_in(${lat},${lon})->.a;area.a["boundary"="administrative"]["admin_level"];out tags;`);
     const areas = (json.elements || []).filter(e => e.tags && e.tags.admin_level);
     const lvl = n => areas.find(a => a.tags.admin_level === String(n));
     const country = lvl(2);
     const town = lvl(8) || lvl(7) || lvl(6);
-    const district = town && (town === lvl(8) || town === lvl(7)) ? (lvl(9) || lvl(10)) : null;
+    const inTown = town && (town === lvl(8) || town === lvl(7));
+    const l9 = inTown ? lvl(9) : null, l10 = inTown ? lvl(10) : null;
     if (!town && !country) throw new Error('no place found');
     const cname = country ? (country.tags['name:en'] || country.tags.name) : 'Somewhere';
-    return { country: cname, town: town ? town.tags.name : cname, district: district ? district.tags.name : '' };
+    return {
+      v: 2,
+      country: cname,
+      code: country ? (country.tags['ISO3166-1:alpha2'] || country.tags['ISO3166-1'] || '') : '',
+      town: town ? town.tags.name : cname,
+      district: l9 ? l9.tags.name : '',
+      neighbourhood: l10 ? l10.tags.name : '',
+    };
   }
   async function pumpPlaces() {
     if (placeBusy) return;
     placeBusy = true;
     while (placeQueue.length) {
       const ev = placeQueue.shift();
-      if (ev.place) continue;
+      if (ev.place && ev.place.v === 2) continue;
       try {
         ev.place = await lookupPlace(ev.lat, ev.lon);
         saveEvents();
@@ -2222,8 +2269,9 @@ function stampSVG(stamp, uid) {
   /* ---------- raccoon panel: raccoon, wardrobe, passport ---------- */
   function raccoonHTML() {
     if (!me.raccoon || state.picking) return pickHTML();
-    const tabs = [['raccoon', 'Raccoon'], ['wardrobe', 'Wardrobe'], ['passport', 'Passport']];
-    const body = state.rtab === 'wardrobe' ? wardrobeHTML() : state.rtab === 'passport' ? passportHTML() : raccoonTabHTML();
+    const tabs = [['raccoon', 'Raccoon'], ['wardrobe', 'Wardrobe'], ['passport', 'Passport'], ['liked', 'Liked']];
+    const body = state.rtab === 'wardrobe' ? wardrobeHTML() : state.rtab === 'passport' ? passportHTML()
+      : state.rtab === 'liked' ? likedHTML() : raccoonTabHTML();
     return `<div class="detail">
       <div class="detail-nav"><button class="link-btn" type="button" data-act="back">Back to list</button></div>
       <div class="tabs" role="tablist" aria-label="Your raccoon">${tabs.map(([k, l]) =>
@@ -2297,6 +2345,51 @@ function stampSVG(stamp, uid) {
       ${pp.map(c => `<p class="rc-section">${esc(c.country)}</p>
         <div class="stamps">${c.stamps.map((st, i) => `<div class="stamp">${stampSVG(st, 'st' + hash32(c.country + st.label) + '_' + i)}</div>`).join('')}</div>`).join('')}
       ${me.visits.length ? '<div class="actions"><button type="button" class="go" data-act="showVisited">Show my spots on the map</button></div>' : ''}`;
+  }
+
+  // One entry per voted spot, everywhere, using each spot's latest vote.
+  function votedEntries() {
+    const entries = [];
+    for (const e of me.votes.slice().sort((a, b) => a.t - b.t)) {
+      if (e.lat == null) continue;
+      let hit = entries.find(x => x.keys.has(e.spot) || metres(x.lat, x.lon, e.lat, e.lon) <= GROUP_RADIUS);
+      if (!hit) { hit = { keys: new Set(), lat: e.lat, lon: e.lon, last: e }; entries.push(hit); }
+      hit.keys.add(e.spot);
+      if (e.t >= hit.last.t) { hit.last = e; hit.lat = e.lat; hit.lon = e.lon; }
+    }
+    return entries;
+  }
+
+  function likedHTML() {
+    const want = state.voteTab;
+    const ref = state.user || state.center;
+    const all = votedEntries();
+    const count = v => all.filter(x => x.last.v === v).length;
+    const list = all.filter(x => x.last.v === want).map(x => {
+      const live = state.spots.find(s => s.members.some(mb => x.keys.has(mb.id))) || nearestSpot(x.lat, x.lon, GROUP_RADIUS);
+      const visit = me.visits.filter(e => e.place && (x.keys.has(e.spot || e.id) || (e.lat != null && metres(e.lat, e.lon, x.lat, x.lon) <= 25)))
+        .sort((a, b) => b.t - a.t)[0];
+      return {
+        lat: x.lat, lon: x.lon, live,
+        kind: live ? live.kind : x.last.kind || 'bench',
+        text: live ? live.text.sentence : x.last.where || (want === 1 ? 'A spot you liked.' : 'A spot you disliked.'),
+        place: visit ? stampLabel(visit.place) : '',
+        d: ref ? metres(ref.lat, ref.lon, x.lat, x.lon) : 0,
+      };
+    }).sort((a, b) => a.d - b.d);
+    state.votedList = list;
+    const seg = (v, label) => `<button class="segbtn" type="button" data-act="voteTab" data-v="${v}" aria-pressed="${want === v}">${label} (${count(v)})</button>`;
+    const items = list.map((x, i) => `<li class="spot">
+        <button class="spot-head" type="button" data-act="openVoted" data-i="${i}">
+          <span class="dot" style="--c:${colorOf(x.kind)}" aria-hidden="true"></span>
+          <span class="spot-body"><span class="sentence">${esc(x.text)}</span>${x.place ? `<span class="comfort">${esc(x.place)}</span>` : ''}</span>
+          <span class="dist">${ref ? fmtDist(x.d) : ''}</span>
+        </button>
+      </li>`).join('');
+    return `<div class="seg voted-switch" role="group" aria-label="Show">${seg(1, 'Liked')}${seg(-1, 'Disliked')}</div>
+      ${list.length
+        ? `<p class="rc-line quiet passport-intro">Everywhere you’ve voted, nearest first${state.user ? '' : ' from the map centre'}. Tap one to open it on the map.</p><ul class="list voted">${items}</ul>`
+        : `<p class="fine">${want === 1 ? 'No liked spots yet. Check in at a spot and tap Like to keep it here.' : 'No disliked spots.'}</p>`}`;
   }
 
   function pickHTML() {
@@ -2460,6 +2553,7 @@ function stampSVG(stamp, uid) {
       if (state.selected !== s.id) return;
       const { latitude, longitude, accuracy } = pos.coords;
       drawUser({ lat: latitude, lon: longitude }, accuracy);
+      state.user = { lat: latitude, lon: longitude };
       const d = Math.min(...s.members.map(mb => metres(latitude, longitude, mb.lat, mb.lon)));
       if (accuracy > GAME.maxAccuracy) {
         state.ckMsg = `Your location is only accurate to about ${Math.round(accuracy)} m. Try again from a more open spot.`;
@@ -2617,6 +2711,7 @@ function stampSVG(stamp, uid) {
       a.busy = false;
       const { latitude, longitude, accuracy } = pos.coords;
       drawUser({ lat: latitude, lon: longitude }, accuracy);
+      state.user = { lat: latitude, lon: longitude };
       if (accuracy > GAME.addMaxAccuracy) {
         a.msg = `Your location is only accurate to about ${Math.round(accuracy)} m, and a new pin needs ${GAME.addMaxAccuracy} m or better. Try again from a more open spot.`;
         renderPanel();
@@ -2721,6 +2816,19 @@ function stampSVG(stamp, uid) {
       const top = $('#panelBody').scrollTop;
       renderPanel();
       $('#panelBody').scrollTop = top;
+    } else if (act === 'voteTab') {
+      state.voteTab = Number(el.dataset.v);
+      renderPanel();
+    } else if (act === 'openVoted') {
+      const x = state.votedList[Number(el.dataset.i)];
+      if (!x) return;
+      if (x.live) { openSpot(x.live.id); return; }
+      // Not in the loaded area: jump there, load it, then open the spot.
+      state.pendingOpen = { lat: x.lat, lon: x.lon };
+      state.selected = null;
+      state.mode = wide.matches ? 'peek' : 'list';
+      map.setView([x.lat, x.lon], 17, { animate: false });
+      showAround({ lat: x.lat, lon: x.lon }, 'that spot');
     } else if (act === 'showVisited') {
       state.need.visited = true;
       closeOverlay();
@@ -2831,6 +2939,7 @@ function stampSVG(stamp, uid) {
       $('#locate').disabled = false;
       const c = { lat: pos.coords.latitude, lon: pos.coords.longitude };
       drawUser(c, pos.coords.accuracy);
+      state.user = c;
       map.setView([c.lat, c.lon], 16, { animate: false });
       showAround(c, 'you');
     }, err => {
