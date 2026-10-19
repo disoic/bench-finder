@@ -403,6 +403,36 @@ button { font: inherit; color: inherit; cursor: pointer; }
 .list.voted { margin: 0 -16px; border-top: 1px solid var(--line); }
 .tab { font-size: 13.5px; }
 
+/* Ratings */
+.rate-q { font-family: var(--serif); font-size: 18px; }
+.rate-row { display: flex; gap: 6px; margin-top: 10px; }
+.ratebtn {
+  flex: 1;
+  padding: 13px 6px;
+  border-radius: 12px;
+  border: 1px solid var(--line);
+  background: var(--surface);
+  font-weight: 600;
+  font-size: 15px;
+}
+.rate-row.small .ratebtn { padding: 10px 6px; font-size: 14px; font-weight: 500; background: var(--paper); }
+.ratebtn.lovely[aria-pressed="true"] { background: var(--like); border-color: var(--like); color: var(--paper); }
+.ratebtn.okay[aria-pressed="true"] { background: var(--ink-2); border-color: var(--ink-2); color: var(--paper); }
+.ratebtn.notgreat[aria-pressed="true"] { background: var(--warn); border-color: var(--warn); color: var(--paper); }
+.rerate { margin-top: 14px; }
+.rerate .field-label { margin-top: 0; }
+.tag.lovely { color: var(--like); font-weight: 600; }
+.tag.notgreat { color: var(--warn); }
+.actions.reset { margin-top: 22px; }
+
+.rate-row.four { flex-wrap: wrap; }
+.rate-row.four .ratebtn { flex: 1 1 40%; }
+.ratebtn.clean[aria-pressed="true"] { background: var(--bench); border-color: var(--bench); color: var(--paper); }
+.ratebtn.avoid[aria-pressed="true"] { background: var(--warn); border-color: var(--warn); color: var(--paper); }
+.ratebtn.closed[aria-pressed="true"] { background: var(--ink); border-color: var(--ink); color: var(--paper); }
+.tag.clean { color: var(--bench); font-weight: 600; }
+.tag.avoid, .tag.closed { color: var(--warn); }
+
 /* Wide screens: sidebar on the left, map fills the rest */
 @media (min-width: 900px) {
   .app { display: grid; grid-template-columns: 440px 1fr; grid-template-rows: auto 1fr; }
@@ -459,7 +489,7 @@ button { font: inherit; color: inherit; cursor: pointer; }
       <button class="chip type" type="button" data-type="table" aria-pressed="true" style="--c: var(--table)"><span class="dot" aria-hidden="true"></span>Picnic tables <span class="count"></span></button>
       <button class="chip type" type="button" data-type="toilet" aria-pressed="true" style="--c: var(--toilet)"><span class="dot" aria-hidden="true"></span>Toilets <span class="count"></span></button>
       <span class="sep" aria-hidden="true"></span>
-      <button class="chip need" type="button" data-need="liked" aria-pressed="false">Liked</button>
+      <button class="chip need" type="button" data-need="liked" aria-pressed="false">Lovely</button>
       <button class="chip need" type="button" data-need="visited" aria-pressed="false">Visited</button>
       <button class="chip need" type="button" data-need="water" aria-pressed="false">By water</button>
       <button class="chip need" type="button" data-need="green" aria-pressed="false">Park or woods</button>
@@ -1211,13 +1241,13 @@ const GAME = {
   checkinRadius: 40,          // metres from the nearest seat of a spot
   accuracySlack: 25,          // extra metres allowed for GPS error
   maxAccuracy: 75,            // location fixes worse than this are refused
+  newSpotValue: 2,            // rating a spot for the first time gives 2 snacks
+  toiletValue: 1,             // rating a toilet for the first time gives 1 (never golden, no trinkets)
   rareOneIn: 30,              // about 1 in 30 snacks is golden
   rareValue: 5,               // a golden snack counts as 5
-  firstVisitBonus: 1,         // first visit to a spot: one extra snack
   trinketOneIn: 8,            // about 1 in 8 check-ins finds a trinket you don't have yet
   streakBonus: 1,             // first check-in of a week, while a weekly streak is running
-  requireCheckinToVote: true, // votes unlock with a check-in...
-  voteWindowHours: 24,        // ...and stay open this long
+  rateWindowHours: 24,        // after a check-in, your rating can still be changed this long
   addReward: 10,              // snacks for adding a missing bench
   addsPerDay: 3,              // new pins per day
   addMinGap: 15,              // metres to the nearest mapped bench or table
@@ -1263,6 +1293,19 @@ const RACCOONS = [
     fur: '#DDD8D1', tail: '#F0ECE6', band: '#A9A39B', mask: '#7C766E', light: '#FFFFFF', belly: '#F6F3EE', paw: '#8E8880' },
 ];
 const raccoonById = id => RACCOONS.find(r => r.id === id) || RACCOONS[0];
+
+// Every check-in is a rating. Only your latest rating of a spot counts.
+const RATINGS = [['lovely', 'Lovely'], ['okay', 'Okay'], ['notgreat', 'Not great']];
+// Toilets get their own words, plus "closed", since whether it's open often matters most.
+const TOILET_RATINGS = [['clean', 'Clean'], ['okay', 'Okay'], ['avoid', 'Avoid'], ['closed', 'Closed or locked']];
+const ratingsFor = kind => (kind === 'toilet' ? TOILET_RATINGS : RATINGS);
+const ratingLabel = r => (RATINGS.concat(TOILET_RATINGS).find(x => x[0] === r) || [, ''])[1];
+const POSITIVE = new Set(['lovely', 'clean']);
+const NEGATIVE = new Set(['notgreat', 'avoid', 'closed']);
+// "Still lovely?", "Still clean?", "Still one to avoid?"
+function stillQuestion(r) {
+  return { avoid: 'Still one to avoid?', closed: 'Still closed?' }[r] || `Still ${ratingLabel(r).toLowerCase()}?`;
+}
 
 // Trinkets found as rare drops, worn in three slots.
 const TRINKETS = [
@@ -1316,27 +1359,34 @@ function streakOf(times, now) {
   while (weeks.has(dayKey(cursor))) { n++; cursor.setDate(cursor.getDate() - 7); }
   return { weeks: n, thisWeek };
 }
-// Everything a check-in gives. visitTimes and owned describe the person before this check-in.
-function rollCheckin(spotId, now, first, visitTimes, owned) {
+// What rating a new spot gives. Return visits give nothing, so people rate many different spots.
+// newSpotTimes and owned describe the person before this check-in.
+function rollCheckin(spotId, now, newSpotTimes, owned) {
   const day = dayKey(new Date(now));
   const snack = snackFor(spotId, day);
-  const st = streakOf(visitTimes, now);
+  const st = streakOf(newSpotTimes, now);
   const streakBonus = !st.thisWeek && st.weeks >= 1 ? GAME.streakBonus : 0;
   let trinket = null;
   if (hash32('trinket|' + day + '|' + spotId) % GAME.trinketOneIn === 0) {
     const left = TRINKETS.filter(x => !owned.includes(x.id));
     if (left.length) trinket = left[hash32('pick|' + day + '|' + spotId) % left.length].id;
   }
-  const value = (snack.rare ? GAME.rareValue : 1) + (first ? GAME.firstVisitBonus : 0) + streakBonus;
-  return { snack, trinket, streakBonus, value, first };
+  const value = (snack.rare ? GAME.rareValue : GAME.newSpotValue) + streakBonus;
+  return { snack, trinket, streakBonus, value, first: true };
 }
 
 // Everything about a person is computed from their history of events,
 // so the same history can later be uploaded to the server as it is.
+// Rating a new toilet: one plain snack, no golden snacks, trinkets or streak bonus.
+function rollToilet(spotId, now) {
+  const s = snackFor(spotId, dayKey(new Date(now)));
+  return { snack: { emoji: s.emoji, name: s.name, rare: false }, trinket: null, streakBonus: 0, value: GAME.toiletValue, first: true };
+}
+
 function deriveState(events) {
   const s = {
     raccoon: null, name: '', total: 0, rares: 0, lastFed: 0,
-    visits: [], votes: [], pins: [], adds: [], trinkets: [], worn: { head: null, face: null, neck: null },
+    visits: [], ratings: [], newSpots: [], pins: [], adds: [], trinkets: [], worn: { head: null, face: null, neck: null },
   };
   const removed = new Set(events.filter(e => e.type === 'remove').map(e => e.id));
   for (const e of events) {
@@ -1345,6 +1395,8 @@ function deriveState(events) {
       if (e.name != null) s.name = e.name;
     } else if (e.type === 'checkin') {
       s.visits.push(e);
+      if (e.rating) s.ratings.push(e);
+      if (e.value && e.kind !== 'toilet') s.newSpots.push(e.t);
       s.total += e.value || 0;
       if (e.rare) s.rares += 1;
       if (e.value) s.lastFed = Math.max(s.lastFed, e.t);
@@ -1354,12 +1406,18 @@ function deriveState(events) {
       if (removed.has(e.id)) continue;
       s.pins.push(e);
       s.visits.push(e);
+      s.newSpots.push(e.t);
+      if (e.rating) s.ratings.push(e);
       s.total += e.value || 0;
       s.lastFed = Math.max(s.lastFed, e.t);
     } else if (e.type === 'legacy') {
       s.total += e.value || 0;
+    } else if (e.type === 'rate') {
+      s.ratings.push(e);
     } else if (e.type === 'vote') {
-      s.votes.push(e);
+      // Likes and dislikes from earlier versions become ratings.
+      const rating = e.v === 1 ? 'lovely' : e.v === -1 ? 'notgreat' : null;
+      if (rating) s.ratings.push(Object.assign({}, e, { rating }));
     } else if (e.type === 'wear') {
       s.worn[e.slot] = e.item || null;
     }
@@ -1383,7 +1441,7 @@ function stampLabel(place) {
 function passportOf(visits) {
   const countries = new Map();
   for (const e of visits) {
-    if (!e.place || !e.place.town) continue;
+    if (!e.place || !e.place.town || e.kind === 'toilet') continue;
     const c = e.place.country || 'Somewhere';
     const label = stampLabel(e.place);
     if (!countries.has(c)) countries.set(c, new Map());
@@ -1628,10 +1686,10 @@ function stampSVG(stamp, uid) {
     spots: [], shown: PAGE, selected: null,
     mode: 'peek',           // peek | list | detail | raccoon | add
     rtab: 'raccoon', picking: false, pickSel: null,
-    voteTab: 1, votedList: [], pendingOpen: null, user: null,
+    rateTab: 'lovely', votedList: [], pendingOpen: null, user: null, rateFor: null,
     ckMsg: '', checking: false, reveal: null,
     pending: 0, failedN: 0,
-    add: { kind: 'bench', backrest: '', msg: '', near: null, done: null, busy: false, step: 'form', fix: null, pin: null },
+    add: { kind: 'bench', backrest: '', rating: '', msg: '', near: null, done: null, busy: false, step: 'form', fix: null, pin: null },
     error: '',
     types: { bench: true, table: true, toilet: true },
     need: { liked: false, water: false, green: false, quiet: false, visited: false },
@@ -1644,7 +1702,7 @@ function stampSVG(stamp, uid) {
      so it can later be uploaded to the server exactly as it is. */
   let events = loadEvents();
   let me = deriveState(events);
-  let links = { visits: new Map(), votes: new Map() };
+  let links = { visits: new Map(), ratings: new Map() };
 
   function loadEvents() {
     try {
@@ -1701,19 +1759,13 @@ function stampSVG(stamp, uid) {
 
   const today = () => dayKey(new Date());
   const visitsOf = id => links.visits.get(id) || [];
-  const myVote = id => (links.votes.get(id) || { v: 0 }).v;
+  const myRating = id => { const e = links.ratings.get(id); return e ? e.rating : null; };
   const visited = id => visitsOf(id).length > 0;
-  const takenToday = id => visitsOf(id).some(e => dayKey(new Date(e.t)) === today());
-  const canVote = id => !GAME.requireCheckinToVote || visitsOf(id).some(e => Date.now() - e.t <= GAME.voteWindowHours * 3600000);
+  const lastVisit = id => visitsOf(id).reduce((a, e) => (!a || e.t > a.t ? e : a), null);
+  const canRerate = id => visitsOf(id).some(e => Date.now() - e.t <= GAME.rateWindowHours * 3600000);
   const look = () => raccoonById(me.raccoon);
   const petName = () => me.name || (me.raccoon ? look().name : 'your raccoon');
 
-  function castVote(s, v) {
-    record({
-      type: 'vote', t: Date.now(), spot: s.id, lat: +s.lat.toFixed(6), lon: +s.lon.toFixed(6), v: myVote(s.id) === v ? 0 : v,
-      where: s.text.sentence, kind: s.kind,
-    });
-  }
   function updateRaccoonButton() {
     $('#snackCount').textContent = me.total;
   }
@@ -1920,8 +1972,8 @@ function stampSVG(stamp, uid) {
   // so spots can be regrouped when the map changes without losing anything.
   let placesQueued = false;
   function linkEvents() {
-    const visits = new Map(), votesBy = new Map();
-    links = { visits, votes: votesBy };
+    const visits = new Map(), ratingsBy = new Map();
+    links = { visits, ratings: ratingsBy };
     if (!state.spots.length || !state.center) return;
     const memberOf = new Map();
     for (const s of state.spots) for (const mb of s.members) memberOf.set(mb.id, s);
@@ -1939,18 +1991,28 @@ function stampSVG(stamp, uid) {
       return bd <= GROUP_RADIUS ? best : null;
     };
     const spotOf = e => memberOf.get(e.spot || e.id) || (e.lat != null ? near(e.lat, e.lon) : null);
+    let repaired = false;
     for (const e of me.visits) {
       const s = spotOf(e);
       if (!s) continue;
+      // Some early check-ins were saved without coordinates, so they couldn't get a stamp.
+      // Their spot is loaded now, so fill them in and look up the place.
+      if (e.lat == null) {
+        e.lat = +s.lat.toFixed(6);
+        e.lon = +s.lon.toFixed(6);
+        repaired = true;
+        queuePlace(e);
+      }
       if (!visits.has(s.id)) visits.set(s.id, []);
       visits.get(s.id).push(e);
     }
-    for (const e of me.votes) {
+    for (const e of me.ratings) {
       const s = spotOf(e);
       if (!s) continue;
-      const cur = votesBy.get(s.id);
-      if (!cur || e.t >= cur.t) votesBy.set(s.id, e);
+      const cur = ratingsBy.get(s.id);
+      if (!cur || e.t >= cur.t) ratingsBy.set(s.id, e);
     }
+    if (repaired) saveEvents();
   }
 
   function nearestSpot(lat, lon, within) {
@@ -1970,7 +2032,7 @@ function stampSVG(stamp, uid) {
   const placeQueue = [];
   let placeBusy = false;
   function queuePlace(ev) {
-    if (ev && ev.lat != null && !(ev.place && ev.place.v === 2)) { placeQueue.push(ev); pumpPlaces(); }
+    if (ev && ev.lat != null && ev.kind !== 'toilet' && !(ev.place && ev.place.v === 2)) { placeQueue.push(ev); pumpPlaces(); }
   }
   // Saves the whole chain (country, town, district, neighbourhood). Which one a stamp shows
   // is decided when it's drawn, so the rule can change later without asking again.
@@ -2065,7 +2127,7 @@ function stampSVG(stamp, uid) {
   function passes(s) {
     if (s.kind === 'toilet' ? !state.types.toilet : !((state.types.bench && s.hasBench) || (state.types.table && s.hasTable))) return false;
     const n = state.need;
-    if (n.liked && myVote(s.id) !== 1) return false;
+    if (n.liked && myRating(s.id) !== 'lovely') return false;
     if (n.visited && !visited(s.id)) return false;
     if (n.water && !s.flags.water) return false;
     if (n.green && !s.flags.green) return false;
@@ -2104,7 +2166,7 @@ function stampSVG(stamp, uid) {
     const z = map.getZoom();
     const solo = [], cells = new Map();
     for (const s of visible()) {
-      if (z > CLUSTER_MAX_ZOOM || s.id === state.selected || myVote(s.id) === 1) { solo.push(s); continue; }
+      if (z > CLUSTER_MAX_ZOOM || s.id === state.selected || myRating(s.id) === 'lovely') { solo.push(s); continue; }
       const p = map.project([s.lat, s.lon], z);
       const key = Math.floor(p.x / CLUSTER_CELL) + ',' + Math.floor(p.y / CLUSTER_CELL);
       if (!cells.has(key)) cells.set(key, []);
@@ -2123,10 +2185,10 @@ function stampSVG(stamp, uid) {
       }).addTo(markerLayer);
     }
     // Draw order puts liked and selected pins on top.
-    const rank = s => (s.id === state.selected ? 3 : myVote(s.id) === 1 ? 2 : myVote(s.id) === -1 ? 0 : 1);
+    const rank = s => (s.id === state.selected ? 3 : POSITIVE.has(myRating(s.id)) ? 2 : NEGATIVE.has(myRating(s.id)) ? 0 : 1);
     solo.sort((a, b) => rank(a) - rank(b));
     for (const s of solo) {
-      const sel = s.id === state.selected, v = myVote(s.id);
+      const sel = s.id === state.selected, r = myRating(s.id), v = POSITIVE.has(r) ? 1 : NEGATIVE.has(r) ? -1 : 0;
       const group = s.members.length > 1;
       L.circleMarker([s.lat, s.lon], {
         radius: sel ? 10 : v === 1 ? 8 : v === -1 ? 5 : group ? 7 : 6,
@@ -2152,8 +2214,8 @@ function stampSVG(stamp, uid) {
     if (!total) text = `Nothing mapped within ${km(SEARCH_RADIUS)} of ${state.place}.`;
     else if (!v.length) text = 'No spots match these filters.';
     else {
-      const liked = v.filter(s => myVote(s.id) === 1).length;
-      text = `${v.length} ${v.length === 1 ? 'spot' : 'spots'} within ${km(SEARCH_RADIUS)} of ${state.place}${liked ? `, ${liked} liked` : ''}.`;
+      const lovely = v.filter(s => myRating(s.id) === 'lovely').length;
+      text = `${v.length} ${v.length === 1 ? 'spot' : 'spots'} within ${km(SEARCH_RADIUS)} of ${state.place}${lovely ? `, ${lovely} lovely` : ''}.`;
     }
     if (state.pending) text += ' Still loading part of the area…';
     else if (state.failedN) text += ' Part of the area couldn’t load.';
@@ -2213,12 +2275,11 @@ function stampSVG(stamp, uid) {
       return '<div class="message"><p>No spots match these filters. Turn one off to see more.</p></div>';
     }
     const items = v.slice(0, state.shown).map(s => {
-      const mv = myVote(s.id);
-      return `<li class="spot${mv === -1 ? ' disliked' : ''}">
+      return `<li class="spot${NEGATIVE.has(myRating(s.id)) ? ' disliked' : ''}">
         <button class="spot-head" type="button" data-act="open" data-id="${esc(s.id)}">
           <span class="dot" style="--c:${colorOf(s.kind)}" aria-hidden="true"></span>
           <span class="spot-body">${summaryHTML(s.text, false)}</span>
-          <span class="dist">${fmtDist(s.dist)}${mv === 1 ? '<span class="liked">Liked</span>' : ''}${visitTag(s)}</span>
+          <span class="dist">${fmtDist(s.dist)}${visitTag(s)}</span>
         </button>
       </li>`;
     }).join('');
@@ -2229,19 +2290,24 @@ function stampSVG(stamp, uid) {
   }
 
   function visitTag(s) {
-    if (!visited(s.id)) return '';
-    return `<span class="tag">${takenToday(s.id) ? 'Snack taken' : 'Visited'}</span>`;
+    const r = myRating(s.id);
+    if (r) return `<span class="tag ${r}">${ratingLabel(r)}</span>`;
+    return visited(s.id) ? '<span class="tag">Visited</span>' : '';
   }
 
   function checkinHTML(s) {
-    if (s.kind === 'toilet') return '';
-    const now = Date.now();
+    const toilet = s.kind === 'toilet';
     const r = state.reveal && state.reveal.id === s.id ? state.reveal : null;
+    const rated = myRating(s.id);
+    const been = visited(s.id);
+    if (r && r.revisit) {
+      return `<div class="checkin"><p class="ck-lead">Saved: ${esc(ratingLabel(r.rating).toLowerCase())}. Thanks for keeping it up to date.</p></div>`;
+    }
     if (r) {
       const name = (r.snack.rare ? 'golden ' : '') + r.snack.name;
-      const lines = [];
+      const lines = [`You rated it ${ratingLabel(r.rating).toLowerCase()}.`];
+      if (toilet) lines.push(`${cap(petName())} waited politely outside.`);
       if (r.snack.rare) lines.push(`Rare find! It counts as ${GAME.rareValue} snacks.`);
-      if (r.first) lines.push('First visit, so one extra snack.');
       if (r.streakBonus) lines.push('Your weekly streak continues: one extra snack.');
       lines.push(`${cap(petName())} has now eaten ${me.total}.`);
       if (r.stamp) lines.push(r.stamp.isNew ? `New passport stamp: ${r.stamp.label}.` : `Stamped in ${r.stamp.label}.`);
@@ -2254,24 +2320,47 @@ function stampSVG(stamp, uid) {
         ${!me.raccoon ? '<p class="found">Your raccoon doesn’t have a face yet. <button class="link-btn" type="button" data-act="openRaccoon">Choose one</button></p>' : ''}
       </div>`;
     }
-    if (takenToday(s.id)) {
-      const sn = snackFor(s.id, dayKey(new Date(now)));
-      return `<div class="checkin"><p class="ck-lead"><span class="ck-emoji" aria-hidden="true">${sn.emoji}</span> You took today’s snack here. Come back tomorrow for another.</p></div>`;
+    if (state.rateFor === s.id) {
+      const q = been && rated ? stillQuestion(rated) : toilet ? 'How is this toilet?' : 'How is this spot?';
+      const opts = ratingsFor(s.kind);
+      return `<div class="checkin">
+        <p class="ck-lead rate-q">${esc(q)}</p>
+        <div class="rate-row${opts.length > 3 ? ' four' : ''}" role="group" aria-label="Your rating">${opts.map(([k, l]) =>
+          `<button class="ratebtn ${k}" type="button" data-act="rate" data-v="${k}" aria-pressed="${been && rated === k}">${l}</button>`).join('')}</div>
+        <p class="ck-msg">${been ? 'Snacks are only for new spots, but an up-to-date rating helps everyone find the best ones.' : `Rate it and ${esc(petName())} gets a snack.`}</p>
+      </div>`;
     }
-    const first = !visited(s.id);
+    const last = lastVisit(s.id);
+    const when = last ? new Date(last.t).toLocaleDateString(undefined, { day: 'numeric', month: 'short' }) : '';
+    const lead = !been ? (toilet ? 'Rate this toilet to help others, and your raccoon gets a snack while it waits outside.' : 'A snack is waiting for your first rating here.')
+      : rated ? `You rated this ${toilet ? 'toilet' : 'spot'} ${ratingLabel(rated).toLowerCase()} on ${when}. Check in again if something has changed.`
+      : 'You’ve been here before. Check in to rate it.';
     return `<div class="checkin">
-      <p class="ck-lead">A snack is waiting here today${first ? ', and a first visit earns one extra' : ''}.</p>
-      <button class="ck-btn" type="button" data-act="checkin"${state.checking ? ' disabled' : ''}>${state.checking ? 'Checking your location…' : 'Check in and grab the snack'}</button>
+      <p class="ck-lead">${esc(lead)}</p>
+      <button class="ck-btn" type="button" data-act="checkin"${state.checking ? ' disabled' : ''}>${state.checking ? 'Checking your location…' : been && rated ? 'Check in and update' : 'Check in and rate'}</button>
       <p class="ck-msg">${esc(state.ckMsg || (TEST ? 'Test mode: your location isn’t checked.' : `Works within ${GAME.checkinRadius} m of the spot.`))}</p>
+    </div>`;
+  }
+
+  // For a day after checking in, the rating can still be changed (for a mis-tap).
+  function rerateHTML(s) {
+    const r = myRating(s.id);
+    if (!r || !canRerate(s.id) || state.rateFor === s.id) return '';
+    const opts = ratingsFor(s.kind);
+    return `<div class="rerate">
+      <p class="field-label">Your rating</p>
+      <div class="rate-row small${opts.length > 3 ? ' four' : ''}" role="group" aria-label="Change your rating">${opts.map(([k, l]) =>
+        `<button class="ratebtn ${k}" type="button" data-act="rerate" data-v="${k}" aria-pressed="${r === k}">${l}</button>`).join('')}</div>
+      <p class="fine">You can change it for ${GAME.rateWindowHours} hours after checking in.</p>
     </div>`;
   }
 
   /* ---------- raccoon panel: raccoon, wardrobe, passport ---------- */
   function raccoonHTML() {
     if (!me.raccoon || state.picking) return pickHTML();
-    const tabs = [['raccoon', 'Raccoon'], ['wardrobe', 'Wardrobe'], ['passport', 'Passport'], ['liked', 'Liked']];
+    const tabs = [['raccoon', 'Raccoon'], ['wardrobe', 'Wardrobe'], ['passport', 'Passport'], ['rated', 'Rated']];
     const body = state.rtab === 'wardrobe' ? wardrobeHTML() : state.rtab === 'passport' ? passportHTML()
-      : state.rtab === 'liked' ? likedHTML() : raccoonTabHTML();
+      : state.rtab === 'rated' ? ratedHTML() : raccoonTabHTML();
     return `<div class="detail">
       <div class="detail-nav"><button class="link-btn" type="button" data-act="back">Back to list</button></div>
       <div class="tabs" role="tablist" aria-label="Your raccoon">${tabs.map(([k, l]) =>
@@ -2291,15 +2380,15 @@ function stampSVG(stamp, uid) {
     const st = stageOf(me.total), mood = moodOf(me.lastFed, now);
     const spots = new Set(me.visits.map(e => e.spot || e.id)).size;
     const progress = st.next ? `${st.toNext} more ${st.toNext === 1 ? 'snack' : 'snacks'} until it’s ${st.next.label.toLowerCase()}.` : 'As round as a raccoon gets.';
-    const streak = streakOf(me.visits.map(e => e.t), now);
+    const streak = streakOf(me.newSpots, now);
     const streakLine = streak.weeks
-      ? `${streak.weeks}-week streak. ${streak.thisWeek ? 'This week already counts.' : 'Check in this week to keep it going and get an extra snack.'}`
-      : 'Check in at least once a week to build a weekly streak.';
+      ? `${streak.weeks}-week streak. ${streak.thisWeek ? 'This week already counts.' : 'Rate a new spot this week to keep it going and get an extra snack.'}`
+      : 'Rate at least one new spot a week to build a weekly streak.';
     const when = t => {
       const d = Math.round((new Date(now).setHours(0, 0, 0, 0) - new Date(t).setHours(0, 0, 0, 0)) / 86400000);
       return d === 0 ? 'Today' : d === 1 ? 'Yesterday' : new Date(t).toLocaleDateString(undefined, { day: 'numeric', month: 'short' });
     };
-    const recent = me.visits.filter(e => !e.legacy).sort((a, b) => b.t - a.t).slice(0, 15);
+    const recent = me.visits.filter(e => e.value > 0).sort((a, b) => b.t - a.t).slice(0, 15);
     const log = recent.length
       ? `<ul class="log">${recent.map(e => {
           const added = e.type === 'add';
@@ -2320,7 +2409,9 @@ function stampSVG(stamp, uid) {
       <p class="rc-line"><button class="link-btn" type="button" data-act="openPick">Switch raccoon</button></p>
       <p class="rc-section">Recent snacks</p>
       ${log}
-      <p class="fine">Check in within ${GAME.checkinRadius} m of a spot to grab its snack. Each spot gives a snack once a day, first visits give an extra one, about 1 in ${GAME.rareOneIn} snacks is golden and counts as ${GAME.rareValue}, and about 1 in ${GAME.trinketOneIn} check-ins finds a trinket.${TEST ? ' Test mode is on, so your location isn’t checked.' : ''}</p>`;
+      <p class="fine">Check in within ${GAME.checkinRadius} m of a spot and rate it. The first time you rate a spot, your raccoon gets ${GAME.newSpotValue} snacks, and ${GAME.toiletValue} for a toilet. About 1 in ${GAME.rareOneIn} is golden and counts as ${GAME.rareValue}, and about 1 in ${GAME.trinketOneIn} new spots hides a trinket. Coming back lets you update your rating, without a snack, so the best spots stay up to date.${TEST ? ' Test mode is on, so your location isn’t checked.' : ''}</p>
+      <div class="actions reset"><button type="button" class="plain" data-act="reset">Start fresh</button></div>
+      <p class="fine">Start fresh clears your raccoon, snacks, ratings, pins and stamps on this phone.</p>`;
   }
 
   function wardrobeHTML() {
@@ -2330,55 +2421,65 @@ function stampSVG(stamp, uid) {
         ? `<button class="tile" type="button" data-act="wear" data-slot="${slot}" data-v="${t.id}" aria-pressed="${me.worn[slot] === t.id}">${trinketTileSVG(t.id, look())}<span>${esc(cap(t.name))}</span></button>`
         : '<div class="tile locked"><span class="q" aria-hidden="true">?</span><span>Not found yet</span></div>').join('')}</div>`).join('');
     return `<div class="raccoon-art small">${art()}</div>
-      <p class="rc-line quiet">${found} of ${TRINKETS.length} trinkets found. About 1 in ${GAME.trinketOneIn} check-ins finds one you don’t have yet. Tap a trinket to put it on or take it off.</p>
+      <p class="rc-line quiet">${found} of ${TRINKETS.length} trinkets found. About 1 in ${GAME.trinketOneIn} new spots hides one you don’t have yet. Tap a trinket to put it on or take it off.</p>
       ${slots}`;
   }
 
   function passportHTML() {
     const pp = passportOf(me.visits);
     const stamps = pp.reduce((n, c) => n + c.stamps.length, 0);
-    const pending = me.visits.filter(e => !e.place && e.lat != null).length;
+    const seats = me.visits.filter(e => e.kind !== 'toilet');
+    const pending = seats.filter(e => !e.place && e.lat != null).length;
+    const unplaced = seats.filter(e => e.lat == null).length;
+    const checkins = seats.length;
+    const spots = new Set(seats.map(e => e.spot || e.id)).size;
+    const plural = (n, one, many) => `${n} ${n === 1 ? one : many}`;
     const summary = stamps
-      ? `${stamps} ${stamps === 1 ? 'stamp' : 'stamps'} from ${pp.length} ${pp.length === 1 ? 'country' : 'countries'}.`
-      : 'No stamps yet. Every town you check in at adds one, and big cities give one per district.';
-    return `<p class="rc-line quiet passport-intro">${esc(summary)}${pending ? ` ${pending} ${pending === 1 ? 'stamp is' : 'stamps are'} still being looked up and will appear when your phone is online.` : ''}</p>
+      ? `${plural(stamps, 'stamp', 'stamps')} from ${plural(checkins, 'check-in', 'check-ins')} at ${plural(spots, 'spot', 'spots')}. Stamps come from check-ins, not votes, and each one covers a whole neighbourhood or town, so several spots can share a stamp.`
+      : 'No stamps yet. Every neighbourhood or town you check in at adds one.';
+    const notes = [];
+    if (pending) notes.push(`${plural(pending, 'stamp is', 'stamps are')} still being looked up and will appear when your phone is online.`);
+    if (unplaced) notes.push(`${plural(unplaced, 'early check-in has', 'early check-ins have')} no saved location yet and will get ${unplaced === 1 ? 'its stamp' : 'their stamps'} next time that area is on the map.`);
+    return `<p class="rc-line quiet passport-intro">${esc(summary)}${notes.length ? ' ' + esc(notes.join(' ')) : ''}</p>
       ${pp.map(c => `<p class="rc-section">${esc(c.country)}</p>
         <div class="stamps">${c.stamps.map((st, i) => `<div class="stamp">${stampSVG(st, 'st' + hash32(c.country + st.label) + '_' + i)}</div>`).join('')}</div>`).join('')}
-      ${me.visits.length ? '<div class="actions"><button type="button" class="go" data-act="showVisited">Show my spots on the map</button></div>' : ''}`;
+      ${seats.length ? '<div class="actions"><button type="button" class="go" data-act="showVisited">Show my spots on the map</button></div>' : ''}`;
   }
 
-  // One entry per voted spot, everywhere, using each spot's latest vote.
-  function votedEntries() {
+  // One entry per rated spot, everywhere, using your latest rating of it.
+  function ratedEntries() {
     const entries = [];
-    for (const e of me.votes.slice().sort((a, b) => a.t - b.t)) {
-      if (e.lat == null) continue;
-      let hit = entries.find(x => x.keys.has(e.spot) || metres(x.lat, x.lon, e.lat, e.lon) <= GROUP_RADIUS);
+    for (const e of me.ratings.slice().sort((a, b) => a.t - b.t)) {
+      if (e.lat == null || e.kind === 'toilet') continue;
+      const key = e.spot || e.id;
+      let hit = entries.find(x => x.keys.has(key) || metres(x.lat, x.lon, e.lat, e.lon) <= GROUP_RADIUS);
       if (!hit) { hit = { keys: new Set(), lat: e.lat, lon: e.lon, last: e }; entries.push(hit); }
-      hit.keys.add(e.spot);
+      hit.keys.add(key);
       if (e.t >= hit.last.t) { hit.last = e; hit.lat = e.lat; hit.lon = e.lon; }
     }
     return entries;
   }
 
-  function likedHTML() {
-    const want = state.voteTab;
+  function ratedHTML() {
+    const want = state.rateTab;
     const ref = state.user || state.center;
-    const all = votedEntries();
-    const count = v => all.filter(x => x.last.v === v).length;
-    const list = all.filter(x => x.last.v === want).map(x => {
+    const all = ratedEntries();
+    const count = k => all.filter(x => x.last.rating === k).length;
+    const list = all.filter(x => x.last.rating === want).map(x => {
       const live = state.spots.find(s => s.members.some(mb => x.keys.has(mb.id))) || nearestSpot(x.lat, x.lon, GROUP_RADIUS);
       const visit = me.visits.filter(e => e.place && (x.keys.has(e.spot || e.id) || (e.lat != null && metres(e.lat, e.lon, x.lat, x.lon) <= 25)))
         .sort((a, b) => b.t - a.t)[0];
       return {
         lat: x.lat, lon: x.lon, live,
         kind: live ? live.kind : x.last.kind || 'bench',
-        text: live ? live.text.sentence : x.last.where || (want === 1 ? 'A spot you liked.' : 'A spot you disliked.'),
-        place: visit ? stampLabel(visit.place) : '',
+        text: live ? live.text.sentence : x.last.where || `A spot you rated ${ratingLabel(want).toLowerCase()}.`,
+        place: visit ? stampLabel(visit.place)
+          : me.visits.some(e => x.keys.has(e.spot || e.id)) ? '' : 'No check-in here, so no stamp',
         d: ref ? metres(ref.lat, ref.lon, x.lat, x.lon) : 0,
       };
     }).sort((a, b) => a.d - b.d);
     state.votedList = list;
-    const seg = (v, label) => `<button class="segbtn" type="button" data-act="voteTab" data-v="${v}" aria-pressed="${want === v}">${label} (${count(v)})</button>`;
+    const seg = (k, label) => `<button class="segbtn" type="button" data-act="rateTab" data-v="${k}" aria-pressed="${want === k}">${label} (${count(k)})</button>`;
     const items = list.map((x, i) => `<li class="spot">
         <button class="spot-head" type="button" data-act="openVoted" data-i="${i}">
           <span class="dot" style="--c:${colorOf(x.kind)}" aria-hidden="true"></span>
@@ -2386,10 +2487,11 @@ function stampSVG(stamp, uid) {
           <span class="dist">${ref ? fmtDist(x.d) : ''}</span>
         </button>
       </li>`).join('');
-    return `<div class="seg voted-switch" role="group" aria-label="Show">${seg(1, 'Liked')}${seg(-1, 'Disliked')}</div>
+    const empty = { lovely: 'No lovely spots yet. Check in at a spot and rate it to keep it here.', okay: 'No spots rated okay.', notgreat: 'No spots rated not great.' }[want];
+    return `<div class="seg voted-switch" role="group" aria-label="Show">${RATINGS.map(([k, l]) => seg(k, l)).join('')}</div>
       ${list.length
-        ? `<p class="rc-line quiet passport-intro">Everywhere you’ve voted, nearest first${state.user ? '' : ' from the map centre'}. Tap one to open it on the map.</p><ul class="list voted">${items}</ul>`
-        : `<p class="fine">${want === 1 ? 'No liked spots yet. Check in at a spot and tap Like to keep it here.' : 'No disliked spots.'}</p>`}`;
+        ? `<p class="rc-line quiet passport-intro">Every spot you’ve rated, nearest first${state.user ? '' : ' from the map centre'}. Tap one to open it on the map.</p><ul class="list voted">${items}</ul>`
+        : `<p class="fine">${empty}</p>`}`;
   }
 
   function pickHTML() {
@@ -2446,15 +2548,15 @@ function stampSVG(stamp, uid) {
       <div class="seg" role="group" aria-label="Type">${seg('addKind', 'bench', 'Bench', a.kind)}${seg('addKind', 'table', 'Picnic table', a.kind)}</div>
       ${a.kind === 'bench' ? `<p class="field-label">Does it have a backrest?</p>
       <div class="seg" role="group" aria-label="Backrest">${seg('addBack', 'yes', 'Yes', a.backrest)}${seg('addBack', 'no', 'No', a.backrest)}${seg('addBack', '', 'Not sure', a.backrest)}</div>` : ''}
-      <button class="ck-btn" type="button" data-act="addHere"${a.busy || left <= 0 ? ' disabled' : ''}>${a.busy ? 'Checking your location…' : 'Add it here'}</button>
+      <p class="field-label">How is it?</p>
+      <div class="seg" role="group" aria-label="Your rating">${RATINGS.map(([k, l]) => seg('addRate', k, l, a.rating)).join('')}</div>
+      <button class="ck-btn" type="button" data-act="addHere"${a.busy || left <= 0 || !a.rating ? ' disabled' : ''}>${a.busy ? 'Checking your location…' : a.rating ? 'Add it here' : 'Choose a rating first'}</button>
       <p class="ck-msg">${esc(a.msg || (left <= 0 ? `That’s ${GAME.addsPerDay} new pins today, the daily limit. Come back tomorrow.` : `${left} of ${GAME.addsPerDay} new pins left today.${TEST ? ' Test mode: the pin goes at the map centre.' : ''}`))}</p>
       ${a.near ? '<div class="actions"><button type="button" class="plain" data-act="openNear">Open the mapped one</button></div>' : ''}
     </div>`;
   }
 
   function detailHTML(s) {
-    const mv = myVote(s.id);
-    const canV = s.kind === 'toilet' || canVote(s.id);
     const dir = `https://www.google.com/maps/dir/?api=1&destination=${s.lat},${s.lon}&travelmode=bicycling`;
     const osm = `https://www.openstreetmap.org/${s.osmType}/${s.osmId}`;
     const gone = `https://www.openstreetmap.org/note/new#map=19/${s.lat.toFixed(6)}/${s.lon.toFixed(6)}`;
@@ -2467,11 +2569,7 @@ function stampSVG(stamp, uid) {
       <p class="kind"><span class="dot" style="--c:${colorOf(s.kind)}" aria-hidden="true"></span>${s.members.length > 1 ? `${s.members.length} seats in one spot` : KIND_LABEL[s.kind]}${s.added ? ', added by you' : ''}</p>
       ${summaryHTML(s.text, true)}
       ${checkinHTML(s)}
-      <div class="votes" role="group" aria-label="Your vote">
-        <button class="vote like" type="button" data-act="vote" data-v="1" aria-pressed="${mv === 1}"${canV ? '' : ' disabled'}>${ICON_LIKE}Like</button>
-        <button class="vote dislike" type="button" data-act="vote" data-v="-1" aria-pressed="${mv === -1}"${canV ? '' : ' disabled'}>${ICON_DISLIKE}Dislike</button>
-      </div>
-      <p class="fine">${canV ? 'Votes are saved on this device for now.' : `Check in here to vote. Voting stays open for ${GAME.voteWindowHours} hours after a check-in.`}</p>
+      ${rerateHTML(s)}
       <div class="actions">
         <a class="go" href="${dir}" target="_blank" rel="noopener">Directions by bike</a>
         ${s.added
@@ -2514,32 +2612,46 @@ function stampSVG(stamp, uid) {
     state.selected = id;
     state.ckMsg = '';
     state.reveal = null;
+    state.rateFor = null;
     setMode('detail');
     renderMarkers();
     $('#panelBody').scrollTop = 0;
     requestAnimationFrame(() => reveal(s));
   }
 
-  function finishCheckin(s) {
-    if (takenToday(s.id)) { renderPanel(); return; }
-    const now = Date.now();
-    const first = !visited(s.id);
-    const r = rollCheckin(s.id, now, first, me.visits.map(e => e.t), me.trinkets);
-    const ev = record({
-      type: 'checkin', t: now, spot: s.id, lat: +s.lat.toFixed(6), lon: +s.lon.toFixed(6),
-      emoji: r.snack.emoji, name: r.snack.name, rare: r.snack.rare, value: r.value, first,
-      streakBonus: r.streakBonus, trinket: r.trinket, where: s.text.sentence, place: null,
-    });
-    state.reveal = Object.assign({ id: s.id, t: now, stamp: null }, r);
+  // Location confirmed: ask for the rating.
+  function verified(s) {
+    state.rateFor = s.id;
+    state.reveal = null;
     state.ckMsg = '';
     renderPanel();
+  }
+
+  function saveRating(s, rating) {
+    const now = Date.now();
+    state.rateFor = null;
+    const base = { t: now, spot: s.id, lat: +s.lat.toFixed(6), lon: +s.lon.toFixed(6), rating, where: s.text.sentence, kind: s.kind, place: null };
+    let ev;
+    if (!visited(s.id)) {
+      // A new spot: the snack, golden snacks, trinkets and streak bonus all come from here.
+      const r = s.kind === 'toilet' ? rollToilet(s.id, now) : rollCheckin(s.id, now, me.newSpots, me.trinkets);
+      ev = record(Object.assign({
+        type: 'checkin', emoji: r.snack.emoji, name: r.snack.name, rare: r.snack.rare, value: r.value,
+        first: true, streakBonus: r.streakBonus, trinket: r.trinket,
+      }, base));
+      state.reveal = Object.assign({ id: s.id, t: now, stamp: null, rating }, r);
+    } else {
+      ev = record(Object.assign({ type: 'checkin', value: 0, revisit: true }, base));
+      state.reveal = { id: s.id, t: now, revisit: true, rating, stamp: null };
+    }
+    renderPanel();
     renderMarkers();
-    queuePlace(ev);
+    if (s.kind !== 'toilet') queuePlace(ev);
   }
 
   function checkIn(s) {
     if (state.checking) return;
-    if (TEST) { finishCheckin(s); return; }
+    if (TEST) { verified(s); return; }
     if (!('geolocation' in navigator)) {
       state.ckMsg = 'This browser can’t share your location, so checking in isn’t possible.';
       renderPanel();
@@ -2560,7 +2672,7 @@ function stampSVG(stamp, uid) {
       } else if (d > GAME.checkinRadius + Math.min(accuracy, GAME.accuracySlack)) {
         state.ckMsg = `You’re about ${fmtDist(d)} away. Get within ${GAME.checkinRadius} m to check in.`;
       } else {
-        finishCheckin(s);
+        verified(s);
         return;
       }
       renderPanel();
@@ -2679,7 +2791,7 @@ function stampSVG(stamp, uid) {
       return;
     }
     const tags = a.kind === 'bench' && a.backrest ? { backrest: a.backrest } : {};
-    const rec = record({ type: 'add', t: now, id: 'user/' + now, kind: a.kind, lat: +lat.toFixed(6), lon: +lon.toFixed(6), tags, value: GAME.addReward, place: null });
+    const rec = record({ type: 'add', t: now, id: 'user/' + now, kind: a.kind, lat: +lat.toFixed(6), lon: +lon.toFixed(6), tags, rating: a.rating, value: GAME.addReward, place: null });
     queuePlace(rec);
     a.done = rec.id;
     a.step = 'form';
@@ -2754,6 +2866,9 @@ function stampSVG(stamp, uid) {
     } else if (act === 'addBack') {
       state.add.backrest = el.dataset.v;
       renderPanel();
+    } else if (act === 'addRate') {
+      state.add.rating = el.dataset.v;
+      renderPanel();
     } else if (act === 'addHere') {
       addHere();
     } else if (act === 'addConfirm') {
@@ -2816,8 +2931,8 @@ function stampSVG(stamp, uid) {
       const top = $('#panelBody').scrollTop;
       renderPanel();
       $('#panelBody').scrollTop = top;
-    } else if (act === 'voteTab') {
-      state.voteTab = Number(el.dataset.v);
+    } else if (act === 'rateTab') {
+      state.rateTab = el.dataset.v;
       renderPanel();
     } else if (act === 'openVoted') {
       const x = state.votedList[Number(el.dataset.i)];
@@ -2847,16 +2962,32 @@ function stampSVG(stamp, uid) {
       renderPanel();
     } else if (act === 'retry') {
       showAround(state.center, state.place);
-    } else if (act === 'vote') {
+    } else if (act === 'rate') {
       const s = selectedSpot();
-      if (!s || el.disabled) return;
-      castVote(s, Number(el.dataset.v));
+      if (!s || state.rateFor !== s.id) return;
+      saveRating(s, el.dataset.v);
+    } else if (act === 'rerate') {
+      const s = selectedSpot();
+      if (!s || !canRerate(s.id)) return;
+      record({ type: 'rate', t: Date.now(), spot: s.id, lat: +s.lat.toFixed(6), lon: +s.lon.toFixed(6), rating: el.dataset.v, where: s.text.sentence, kind: s.kind });
+      if (state.reveal && state.reveal.id === s.id) state.reveal.rating = el.dataset.v;
       const top = $('#panelBody').scrollTop;
       renderPanel();
       renderMarkers();
       $('#panelBody').scrollTop = top;
-      const again = document.querySelector(`.vote[data-v="${el.dataset.v}"]`);
-      if (again) again.focus({ preventScroll: true });
+    } else if (act === 'reset') {
+      if (!confirm('Start fresh? This clears your raccoon, snacks, ratings, pins and stamps on this phone.')) return;
+      for (const k of [EVENTS_KEY, 'pause.raccoon.v1', 'pause.votes.v1', 'pause.added.v1']) {
+        try { localStorage.removeItem(k); } catch (e) { /* ignore */ }
+      }
+      events = [];
+      me = deriveState(events);
+      placeQueue.length = 0;
+      Object.assign(state, { reveal: null, rateFor: null, picking: false, pickSel: null, rtab: 'raccoon', selected: null });
+      updateRaccoonButton();
+      refresh();
+      setMode('raccoon');
+      $('#panelBody').scrollTop = 0;
     }
   });
 
@@ -2890,7 +3021,7 @@ function stampSVG(stamp, uid) {
     if (state.mode === 'add') { closeOverlay(); return; }
     state.selected = null;
     state.reveal = null;
-    state.add = { kind: 'bench', backrest: '', msg: '', near: null, done: null, busy: false, step: 'form', fix: null, pin: null };
+    state.add = { kind: 'bench', backrest: '', rating: '', msg: '', near: null, done: null, busy: false, step: 'form', fix: null, pin: null };
     setMode('add');
     renderMarkers();
     $('#panelBody').scrollTop = 0;
