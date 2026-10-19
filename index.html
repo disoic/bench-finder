@@ -308,6 +308,97 @@ button { font: inherit; color: inherit; cursor: pointer; }
 }
 .actions button.go { background: var(--bench); border-color: var(--bench); color: var(--paper); }
 
+/* The draggable pin for a new bench */
+.drop-pin-wrap { background: none; border: 0; }
+.drop-pin {
+  width: 30px;
+  height: 30px;
+  border-radius: 50% 50% 50% 0;
+  transform: rotate(-45deg);
+  background: var(--c);
+  border: 3px solid var(--paper);
+  box-shadow: 0 2px 6px rgba(0, 0, 0, .35);
+  cursor: grab;
+}
+.drop-pin::after {
+  content: "";
+  position: absolute;
+  inset: 8px;
+  border-radius: 50%;
+  background: var(--paper);
+}
+
+/* Bubbles for nearby spots when zoomed out */
+.bubble-wrap { background: none; border: 0; }
+.bubble {
+  display: grid;
+  place-items: center;
+  width: 100%;
+  height: 100%;
+  border-radius: 50%;
+  background: var(--ink);
+  color: var(--paper);
+  border: 2px solid var(--paper);
+  box-shadow: 0 1px 4px rgba(0, 0, 0, .3);
+  font: 600 12.5px/1 var(--sans);
+  font-variant-numeric: tabular-nums;
+}
+
+/* Raccoon panel: tabs, picker, wardrobe, passport */
+.tabs {
+  display: flex;
+  gap: 4px;
+  margin: 8px 0 6px;
+  padding: 3px;
+  border-radius: 12px;
+  background: var(--paper);
+  border: 1px solid var(--line);
+}
+.tab { flex: 1; padding: 9px 6px; border: 0; border-radius: 9px; background: transparent; font-weight: 500; font-size: 14px; color: var(--ink-2); }
+.tab[aria-selected="true"] { background: var(--surface); color: var(--ink); box-shadow: 0 1px 3px rgba(0, 0, 0, .12); }
+.raccoon-art.small svg { width: 150px; }
+.pick-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; margin-top: 14px; }
+.pick {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  padding: 8px 8px 12px;
+  border-radius: 14px;
+  border: 1px solid var(--line);
+  background: var(--paper);
+  text-align: center;
+}
+.pick svg { width: 100%; max-width: 132px; height: auto; }
+.pick[aria-pressed="true"] { background: var(--surface); border-color: var(--ink); box-shadow: inset 0 0 0 1.5px var(--ink); }
+.pick-name { font-family: var(--serif); font-size: 17px; font-weight: 500; color: var(--ink); }
+.pick-line { font-size: 12.5px; line-height: 1.35; color: var(--ink-2); }
+.tiles { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+.tile {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  padding: 6px 6px 10px;
+  border-radius: 12px;
+  border: 1px solid var(--line);
+  background: var(--paper);
+  font-size: 12.5px;
+  font-weight: 500;
+  color: var(--ink);
+  text-align: center;
+}
+.tile svg { width: 100%; height: auto; }
+.tile[aria-pressed="true"] { background: var(--surface); border-color: var(--bench); box-shadow: inset 0 0 0 1.5px var(--bench); }
+.tile.locked { justify-content: center; min-height: 88px; border-style: dashed; color: var(--ink-3); font-weight: 400; }
+.tile .q { font-family: var(--serif); font-size: 26px; line-height: 1; }
+/* Stamps sit on paper in both light and dark mode, like a real passport page. */
+.stamps { display: grid; grid-template-columns: repeat(3, 1fr); gap: 4px; padding: 8px; border-radius: 12px; background: #FBF8F1; }
+.stamp svg { display: block; width: 100%; height: auto; }
+.passport-intro { margin-top: 10px; text-align: left; max-width: none; }
+.found { margin: 10px 0 0; font-size: 14px; color: var(--ink); }
+.found .link-btn { padding: 0 2px; }
+
 /* Wide screens: sidebar on the left, map fills the rest */
 @media (min-width: 900px) {
   .app { display: grid; grid-template-columns: 440px 1fr; grid-template-rows: auto 1fr; }
@@ -365,6 +456,7 @@ button { font: inherit; color: inherit; cursor: pointer; }
       <button class="chip type" type="button" data-type="toilet" aria-pressed="true" style="--c: var(--toilet)"><span class="dot" aria-hidden="true"></span>Toilets <span class="count"></span></button>
       <span class="sep" aria-hidden="true"></span>
       <button class="chip need" type="button" data-need="liked" aria-pressed="false">Liked</button>
+      <button class="chip need" type="button" data-need="visited" aria-pressed="false">Visited</button>
       <button class="chip need" type="button" data-need="water" aria-pressed="false">By water</button>
       <button class="chip need" type="button" data-need="green" aria-pressed="false">Park or woods</button>
       <button class="chip need" type="button" data-need="quiet" aria-pressed="false">Away from traffic</button>
@@ -402,6 +494,7 @@ const RULES = {
   bikeParking: 50,
 };
 const SEARCH_RADIUS = 1500;   // spots are shown within this distance
+const GROUP_RADIUS = 15;      // benches and tables this close to a spot's first seat form one spot
 const FETCH_RADIUS = 5000;    // data is loaded and saved on the phone this far around you
 const TILE_LAT = 0.03;        // data is fetched in squares of about 3.3 km...
 const TILE_LON = 0.045;       // ...so moving around reuses what's already saved
@@ -826,7 +919,7 @@ function analyseSections(sec, center, R = SEARCH_RADIUS, clipHalf = null) {
   }
 
   const D = { P, Lf, A, trees, bins };
-  const spots = [];
+  const spots = [], seats = [];
   for (const el of sec.spots) {
     const t = el.tags || {};
     const kind = t.amenity === 'bench' ? 'bench' : t.leisure === 'picnic_table' ? 'table' : t.amenity === 'toilets' ? 'toilet' : null;
@@ -835,16 +928,96 @@ function analyseSections(sec, center, R = SEARCH_RADIUS, clipHalf = null) {
     if (!c) continue;
     const [x, y] = proj(c[0], c[1]);
     const dist = Math.hypot(x, y);
-    if (dist > R) continue;
     const id = el.type + '/' + el.id;
-    const spot = { id, osmType: el.type, osmId: el.id, kind, lat: c[0], lon: c[1], dist, tags: t, added: el.type === 'user' };
-    spot.m = measure(x, y, id, D);
+    const item = { id, el, kind, lat: c[0], lon: c[1], x, y, dist, tags: t, added: el.type === 'user' };
+    if (kind === 'toilet') {
+      if (dist > R) continue;
+      const spot = {
+        id, osmType: el.type, osmId: el.id, kind, lat: c[0], lon: c[1], dist, tags: t, added: false,
+        members: [{ id, kind, lat: c[0], lon: c[1], added: false }], counts: { bench: 0, table: 0 }, hasBench: false, hasTable: false,
+      };
+      spot.m = measure(x, y, id, D);
+      spot.text = describe(spot);
+      spot.flags = flagsOf(spot.m);
+      spots.push(spot);
+    } else if (dist <= R + GROUP_RADIUS) {
+      seats.push(item);
+    }
+  }
+
+  // Group seats into spots. Each spot is a circle of GROUP_RADIUS around its first seat,
+  // so a row of benches along a promenade becomes a row of spots instead of one long chain.
+  // Older OpenStreetMap entries go first, so spots keep the same first seat over time.
+  const rank = s => (s.added ? 2 : s.el.type === 'node' ? 0 : 1);
+  seats.sort((a, b) => rank(a) - rank(b) || Number(a.el.id) - Number(b.el.id));
+  const grid = new Map(), cell = GROUP_RADIUS;
+  seats.forEach((s, i) => {
+    const k = Math.floor(s.x / cell) + ',' + Math.floor(s.y / cell);
+    if (!grid.has(k)) grid.set(k, []);
+    grid.get(k).push(i);
+  });
+  const used = new Uint8Array(seats.length);
+  seats.forEach((seed, i) => {
+    if (used[i]) return;
+    used[i] = 1;
+    const members = [seed];
+    const cx = Math.floor(seed.x / cell), cy = Math.floor(seed.y / cell);
+    for (let a = cx - 1; a <= cx + 1; a++) {
+      for (let b = cy - 1; b <= cy + 1; b++) {
+        for (const j of grid.get(a + ',' + b) || []) {
+          if (used[j]) continue;
+          if (Math.hypot(seats[j].x - seed.x, seats[j].y - seed.y) <= GROUP_RADIUS) { used[j] = 1; members.push(seats[j]); }
+        }
+      }
+    }
+    const mx = members.reduce((n, s) => n + s.x, 0) / members.length;
+    const my = members.reduce((n, s) => n + s.y, 0) / members.length;
+    const dist = Math.hypot(mx, my);
+    if (dist > R) return;
+    const counts = { bench: members.filter(s => s.kind === 'bench').length, table: members.filter(s => s.kind === 'table').length };
+    const spot = {
+      id: seed.id, osmType: seed.el.type, osmId: seed.el.id,
+      kind: counts.bench ? 'bench' : 'table',
+      lat: members.reduce((n, s) => n + s.lat, 0) / members.length,
+      lon: members.reduce((n, s) => n + s.lon, 0) / members.length,
+      dist, tags: groupTags(members), added: seed.added,
+      members: members.map(s => ({ id: s.id, kind: s.kind, lat: s.lat, lon: s.lon, added: s.added })),
+      counts, hasBench: counts.bench > 0, hasTable: counts.table > 0,
+    };
+    spot.m = combineMeasures(members.map(s => measure(s.x, s.y, s.id, D)));
     spot.text = describe(spot);
     spot.flags = flagsOf(spot.m);
     spots.push(spot);
-  }
+  });
   spots.sort((a, b) => a.dist - b.dist);
   return spots;
+}
+
+// A spot is described by its best and worst seats: nearest water, nearest road, and so on.
+function combineMeasures(list) {
+  if (list.length === 1) return list[0];
+  const m = {};
+  for (const k of Object.keys(list[0])) {
+    const vals = list.map(x => x[k]);
+    if (typeof vals[0] === 'number') m[k] = k === 'trees' ? Math.max(...vals) : Math.min(...vals);
+    else if (typeof vals[0] === 'boolean') m[k] = vals.some(Boolean);
+  }
+  m.stopLabel = list.reduce((a, b) => (b.stop < a.stop ? b : a)).stopLabel;
+  m.foodLabel = list.reduce((a, b) => (b.food < a.food ? b : a)).foodLabel;
+  return m;
+}
+function groupTags(members) {
+  if (members.length === 1) return members[0].tags;
+  const benches = members.filter(s => s.kind === 'bench');
+  const t = {};
+  const backs = benches.map(s => s.tags.backrest);
+  if (backs.length && backs.every(v => v === 'yes')) t.backrest = 'yes';
+  else if (backs.some(v => v === 'yes')) t.backrest = 'some';
+  else if (backs.length && backs.every(v => v === 'no')) t.backrest = 'no';
+  const mats = benches.map(s => s.tags.material);
+  if (mats.length && mats[0] && mats.every(v => v === mats[0])) t.material = mats[0];
+  if (members.some(s => s.tags.covered === 'yes')) t.covered = 'yes';
+  return t;
 }
 
 function measure(x, y, key, D) {
@@ -920,10 +1093,18 @@ function describe(s) {
     };
   }
 
-  const noun = s.kind === 'table' ? 'picnic table' : 'bench';
+  const nb = s.counts ? s.counts.bench : s.kind === 'bench' ? 1 : 0;
+  const nt = s.counts ? s.counts.table : s.kind === 'table' ? 1 : 0;
+  const mat = MATERIAL[t.material] ? MATERIAL[t.material] + ' ' : '';
+  let noun;
+  if (nb + nt <= 1) noun = mat + (nt ? 'picnic table' : 'bench');
+  else if (nb <= 1 && nt <= 1) noun = 'bench and picnic table';
+  else if (!nt) noun = `group of ${nb} ${mat}benches`;
+  else if (!nb) noun = `group of ${nt} picnic tables`;
+  else noun = `group of ${nb} ${nb === 1 ? 'bench' : mat + 'benches'} and ${nt === 1 ? 'a picnic table' : nt + ' picnic tables'}`;
   const lakeside = m.lake <= R.lake;
   const riverside = !lakeside && m.river <= R.river;
-  const head = [lakeside ? 'lakeside' : riverside ? 'riverside' : '', MATERIAL[t.material] || '', noun].filter(Boolean).join(' ');
+  const head = [lakeside ? 'lakeside' : riverside ? 'riverside' : '', noun].filter(Boolean).join(' ');
   const tail = [];
   if (where) tail.push(where);
   if (m.promenade <= R.promenade) tail.push('on a promenade');
@@ -936,8 +1117,9 @@ function describe(s) {
   const sentence = cap(head + (tail.length ? ' ' + tail.join(', ') : '')) + '.';
 
   const c = [];
-  if (s.kind === 'bench') {
-    if (t.backrest === 'yes') c.push('backrest');
+  if (nb) {
+    if (t.backrest === 'yes') c.push(nb > 1 ? 'backrests' : 'backrest');
+    else if (t.backrest === 'some') c.push('some with backrest');
     else if (t.backrest === 'no') c.push('no backrest');
   }
   if (t.covered === 'yes' || m.shelter <= R.shelter) c.push('roofed');
@@ -957,7 +1139,7 @@ function describe(s) {
   return {
     sentence,
     comfort: c.length ? cap(c.join(', ')) + '.' : '',
-    note: !tail.length && !c.length && head === noun ? 'Nothing notable mapped around it.' : '',
+    note: !tail.length && !c.length && head === noun && nb + nt <= 1 ? 'Nothing notable mapped around it.' : '',
     facts, warnings,
   };
 }
@@ -1015,22 +1197,26 @@ function measuredRows(s) {
 
 <script id="game">
 /* ============================================================
-   Game: a hungry raccoon fed with snacks found at benches.
-   Pure functions only, so it can be tested on its own.
+   Game: a hungry raccoon fed with snacks found at spots.
+   Pure functions only, so the rules can be tested on their own
+   and later moved to the server unchanged in meaning.
    ============================================================ */
 
 const GAME = {
-  checkinRadius: 40,          // metres from the bench
+  checkinRadius: 40,          // metres from the nearest seat of a spot
   accuracySlack: 25,          // extra metres allowed for GPS error
   maxAccuracy: 75,            // location fixes worse than this are refused
   rareOneIn: 30,              // about 1 in 30 snacks is golden
   rareValue: 5,               // a golden snack counts as 5
-  firstVisitBonus: 1,         // first visit to a bench: one extra snack
+  firstVisitBonus: 1,         // first visit to a spot: one extra snack
+  trinketOneIn: 8,            // about 1 in 8 check-ins finds a trinket you don't have yet
+  streakBonus: 1,             // first check-in of a week, while a weekly streak is running
   requireCheckinToVote: true, // votes unlock with a check-in...
   voteWindowHours: 24,        // ...and stay open this long
   addReward: 10,              // snacks for adding a missing bench
   addsPerDay: 3,              // new pins per day
   addMinGap: 15,              // metres to the nearest mapped bench or table
+  addMaxDistance: 40,         // the new pin can be dragged this far from where you stand
   addMaxAccuracy: 30,         // adding needs a good location fix
 };
 
@@ -1048,7 +1234,47 @@ const STAGES = [
   { at: 100, label: 'Magnificently round', scale: 1.36 },
 ];
 
-// Small, fast string hash (FNV-1a). Same input, same number, on every phone.
+// Ten raccoons to choose from. Same body, different fur and one distinguishing feature.
+const RACCOONS = [
+  { id: 'pip', name: 'Pip', line: 'Always first to the crumbs.', feature: 'none',
+    fur: '#9C968F', tail: '#B3ADA6', band: '#5F5A55', mask: '#2E2A28', light: '#F2EEE7', belly: '#E4DED5', paw: '#3A3633' },
+  { id: 'rusty', name: 'Rusty', line: 'Smells a croissant from a kilometre away.', feature: 'freckles',
+    fur: '#B9764A', tail: '#D19A70', band: '#7A4527', mask: '#3B2418', light: '#F6E8DA', belly: '#EBD3BD', paw: '#4A2E1F' },
+  { id: 'midnight', name: 'Midnight', line: 'Sneaks up on picnics without a sound.', feature: 'whiteSocks',
+    fur: '#4F4B47', tail: '#77726C', band: '#26231F', mask: '#161412', light: '#E8E4DE', belly: '#A39E97', paw: '#EDE9E3' },
+  { id: 'biscuit', name: 'Biscuit', line: 'Will trade anything for a cookie.', feature: 'pinkNose',
+    fur: '#D3BC96', tail: '#E6D6B8', band: '#9B8461', mask: '#6E5A3E', light: '#FBF6EC', belly: '#F2E6D0', paw: '#7D6748' },
+  { id: 'fluff', name: 'Fluff', line: 'Mostly fur, partly appetite.', feature: 'fluffyCheeks',
+    fur: '#B4AFA8', tail: '#CDC8C1', band: '#6F6A64', mask: '#38342F', light: '#F7F4EF', belly: '#ECE7E0', paw: '#47423D' },
+  { id: 'hazel', name: 'Hazel', line: 'Knows every shortcut through the park.', feature: 'earTufts',
+    fur: '#8B6E55', tail: '#A88C72', band: '#4F3B2B', mask: '#2A1F17', light: '#F1E8DE', belly: '#DCCBB8', paw: '#35281E' },
+  { id: 'pepper', name: 'Pepper', line: 'Collects anything that glitters.', feature: 'thinStripes',
+    fur: '#A3A7AB', tail: '#C8CBCE', band: '#4B4F54', mask: '#25282B', light: '#F4F5F6', belly: '#DFE2E4', paw: '#33363A' },
+  { id: 'sage', name: 'Sage', line: 'Prefers benches with a view.', feature: 'blaze',
+    fur: '#8E9585', tail: '#AAB0A1', band: '#545A4C', mask: '#2C3027', light: '#F1F2EC', belly: '#DADDD2', paw: '#383C33' },
+  { id: 'coco', name: 'Coco', line: 'Naps in the shade after every meal.', feature: 'roundEars',
+    fur: '#6B4E3D', tail: '#8A6A56', band: '#3B2A20', mask: '#1F1612', light: '#EFE4DA', belly: '#C9B2A1', paw: '#2A1E18' },
+  { id: 'nimbus', name: 'Nimbus', line: 'Cloud-soft and impossible to ignore.', feature: 'bigTail',
+    fur: '#DDD8D1', tail: '#F0ECE6', band: '#A9A39B', mask: '#7C766E', light: '#FFFFFF', belly: '#F6F3EE', paw: '#8E8880' },
+];
+const raccoonById = id => RACCOONS.find(r => r.id === id) || RACCOONS[0];
+
+// Trinkets found as rare drops, worn in three slots.
+const TRINKETS = [
+  { id: 'strawhat', slot: 'head', name: 'straw hat' },
+  { id: 'cap', slot: 'head', name: 'cap' },
+  { id: 'flowers', slot: 'head', name: 'flower crown' },
+  { id: 'sunglasses', slot: 'face', name: 'sunglasses' },
+  { id: 'glasses', slot: 'face', name: 'round glasses' },
+  { id: 'scarf', slot: 'neck', name: 'scarf' },
+  { id: 'bandana', slot: 'neck', name: 'bandana' },
+  { id: 'bowtie', slot: 'neck', name: 'bow tie' },
+];
+const SLOTS = [['head', 'Head'], ['face', 'Face'], ['neck', 'Neck']];
+
+/* ---------- rules ---------- */
+
+// Small, fast string hash (FNV-1a). Same input, same number, on every phone and on the server.
 function hash32(s) {
   let h = 0x811c9dc5;
   for (let i = 0; i < s.length; i++) {
@@ -1060,134 +1286,297 @@ function hash32(s) {
 function dayKey(d) {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 }
-// Today's snack at a bench is the same for everyone, without asking a server.
-function snackFor(benchId, day) {
-  const [emoji, name] = SNACKS[hash32(benchId + '|' + day) % SNACKS.length];
-  const rare = hash32('rare|' + day + '|' + benchId) % GAME.rareOneIn === 0;
+// Today's snack at a spot is the same for everyone.
+function snackFor(spotId, day) {
+  const [emoji, name] = SNACKS[hash32(spotId + '|' + day) % SNACKS.length];
+  const rare = hash32('rare|' + day + '|' + spotId) % GAME.rareOneIn === 0;
   return { emoji, name, rare };
 }
-function newGame() {
-  return { name: '', total: 0, rares: 0, lastFed: 0, visits: {}, log: [] };
+// Monday 00:00 of the week containing t (local time).
+function weekStart(t) {
+  const d = new Date(t);
+  d.setHours(0, 0, 0, 0);
+  d.setDate(d.getDate() - ((d.getDay() + 6) % 7));
+  return d;
 }
-function applyCheckin(game, spot, now) {
+// Consecutive weeks (Monday to Sunday) with at least one visit. This week counts once it has a visit;
+// until then, a streak that reached last week is still alive.
+function streakOf(times, now) {
+  const weeks = new Set(times.map(t => dayKey(weekStart(t))));
+  const cur = weekStart(now);
+  const thisWeek = weeks.has(dayKey(cur));
+  const cursor = new Date(cur);
+  if (!thisWeek) cursor.setDate(cursor.getDate() - 7);
+  let n = 0;
+  while (weeks.has(dayKey(cursor))) { n++; cursor.setDate(cursor.getDate() - 7); }
+  return { weeks: n, thisWeek };
+}
+// Everything a check-in gives. visitTimes and owned describe the person before this check-in.
+function rollCheckin(spotId, now, first, visitTimes, owned) {
   const day = dayKey(new Date(now));
-  const prev = game.visits[spot.id];
-  const snack = snackFor(spot.id, day);
-  if (prev && prev.last === day) return { already: true, snack };
-  const first = !prev;
-  const value = (snack.rare ? GAME.rareValue : 1) + (first ? GAME.firstVisitBonus : 0);
-  game.visits[spot.id] = { first: prev ? prev.first : now, last: day, lastTs: now, count: (prev ? prev.count : 0) + 1 };
-  game.total += value;
-  if (snack.rare) game.rares += 1;
-  game.lastFed = now;
-  game.log.unshift({
-    t: now, id: spot.id, emoji: snack.emoji, name: snack.name, rare: snack.rare, value, first,
-    where: (spot.text && spot.text.sentence) || '',
-  });
-  game.log = game.log.slice(0, 50);
-  return { already: false, snack, first, value };
-}
-// Adding a missing bench counts as a first visit, with a bigger reward.
-function applyAdd(game, rec, now) {
-  game.visits[rec.id] = { first: now, last: dayKey(new Date(now)), lastTs: now, count: 1 };
-  game.total += GAME.addReward;
-  game.lastFed = now;
-  game.log.unshift({
-    t: now, id: rec.id, emoji: '📍', name: rec.kind === 'table' ? 'new picnic table' : 'new bench',
-    rare: false, value: GAME.addReward, first: true, added: true, where: 'Added by you',
-  });
-  game.log = game.log.slice(0, 50);
-  return { value: GAME.addReward };
-}
-// Removing your own pin takes its reward back.
-function undoAdd(game, id) {
-  game.total = Math.max(0, game.total - GAME.addReward);
-  delete game.visits[id];
-  game.log = game.log.filter(e => e.id !== id);
-}
-function addsToday(added, now) {
-  const day = dayKey(new Date(now));
-  return added.filter(a => dayKey(new Date(a.t)) === day).length;
+  const snack = snackFor(spotId, day);
+  const st = streakOf(visitTimes, now);
+  const streakBonus = !st.thisWeek && st.weeks >= 1 ? GAME.streakBonus : 0;
+  let trinket = null;
+  if (hash32('trinket|' + day + '|' + spotId) % GAME.trinketOneIn === 0) {
+    const left = TRINKETS.filter(x => !owned.includes(x.id));
+    if (left.length) trinket = left[hash32('pick|' + day + '|' + spotId) % left.length].id;
+  }
+  const value = (snack.rare ? GAME.rareValue : 1) + (first ? GAME.firstVisitBonus : 0) + streakBonus;
+  return { snack, trinket, streakBonus, value, first };
 }
 
-function takenToday(game, id, now) {
-  const v = game.visits[id];
-  return !!v && v.last === dayKey(new Date(now));
+// Everything about a person is computed from their history of events,
+// so the same history can later be uploaded to the server as it is.
+function deriveState(events) {
+  const s = {
+    raccoon: null, name: '', total: 0, rares: 0, lastFed: 0,
+    visits: [], votes: [], pins: [], adds: [], trinkets: [], worn: { head: null, face: null, neck: null },
+  };
+  const removed = new Set(events.filter(e => e.type === 'remove').map(e => e.id));
+  for (const e of events) {
+    if (e.type === 'profile') {
+      if (e.raccoon) s.raccoon = e.raccoon;
+      if (e.name != null) s.name = e.name;
+    } else if (e.type === 'checkin') {
+      s.visits.push(e);
+      s.total += e.value || 0;
+      if (e.rare) s.rares += 1;
+      if (e.value) s.lastFed = Math.max(s.lastFed, e.t);
+      if (e.trinket && !s.trinkets.includes(e.trinket)) s.trinkets.push(e.trinket);
+    } else if (e.type === 'add') {
+      s.adds.push(e);
+      if (removed.has(e.id)) continue;
+      s.pins.push(e);
+      s.visits.push(e);
+      s.total += e.value || 0;
+      s.lastFed = Math.max(s.lastFed, e.t);
+    } else if (e.type === 'legacy') {
+      s.total += e.value || 0;
+    } else if (e.type === 'vote') {
+      s.votes.push(e);
+    } else if (e.type === 'wear') {
+      s.worn[e.slot] = e.item || null;
+    }
+  }
+  return s;
 }
-function canVote(game, id, now) {
-  if (!GAME.requireCheckinToVote) return true;
-  const v = game.visits[id];
-  return !!v && now - v.lastTs <= GAME.voteWindowHours * 3600 * 1000;
+
+// Passport stamps: one per town, or per district in big cities, grouped by country.
+function stampLabel(place) {
+  return place.district ? `${place.town}, ${place.district}` : place.town;
 }
+function passportOf(visits) {
+  const countries = new Map();
+  for (const e of visits) {
+    if (!e.place || !e.place.town) continue;
+    const c = e.place.country || 'Somewhere';
+    const label = stampLabel(e.place);
+    if (!countries.has(c)) countries.set(c, new Map());
+    const m = countries.get(c);
+    if (!m.has(label)) m.set(label, { label, town: e.place.town, district: e.place.district || '', first: e.t, spots: new Set() });
+    const st = m.get(label);
+    st.first = Math.min(st.first, e.t);
+    st.spots.add(e.spot || e.id);
+  }
+  return [...countries].map(([country, m]) => ({
+    country,
+    stamps: [...m.values()].sort((a, b) => a.first - b.first).map(x => Object.assign({}, x, { spots: x.spots.size })),
+  })).sort((a, b) => a.stamps[0].first - b.stamps[0].first);
+}
+
 function stageOf(total) {
   let i = 0;
   while (i + 1 < STAGES.length && total >= STAGES[i + 1].at) i++;
   const next = STAGES[i + 1] || null;
-  return { ...STAGES[i], next, toNext: next ? next.at - total : 0 };
+  return Object.assign({}, STAGES[i], { next, toNext: next ? next.at - total : 0 });
 }
-function moodOf(game, now) {
-  if (!game.lastFed) return { key: 'hungry', label: 'Hungry and waiting for its first snack' };
+function moodOf(lastFed, now) {
+  if (!lastFed) return { key: 'hungry', label: 'Hungry and waiting for its first snack' };
   const day = t => new Date(t).setHours(0, 0, 0, 0);
-  const days = Math.round((day(now) - day(game.lastFed)) / 86400000);
+  const days = Math.round((day(now) - day(lastFed)) / 86400000);
   if (days <= 0) return { key: 'happy', label: 'Full and happy' };
   if (days <= 2) return { key: 'content', label: 'Content' };
   if (days <= 6) return { key: 'peckish', label: 'Getting peckish' };
   return { key: 'hungry', label: `Hungry, last fed ${days} days ago` };
 }
 
-// An original raccoon. Its belly grows with the stage; its face follows its mood.
-function raccoonSVG(scale, mood, holding) {
-  const fur = '#9C968F', dark = '#2E2A28', light = '#F2EEE7', belly = '#E4DED5', band = '#5F5A55', paw = '#3A3633';
+/* ---------- drawings ---------- */
+
+function trinketSVG(id) {
+  switch (id) {
+    case 'strawhat': return `
+      <ellipse cx="110" cy="49" rx="50" ry="10" fill="#D9B46A"/>
+      <path d="M84 49 C84 26 136 26 136 49 Z" fill="#E6C98A"/>
+      <rect x="84.5" y="40" width="51" height="7" fill="#C0504D"/>
+      <path d="M62 49 q48 9 96 0" stroke="#C59E55" stroke-width="2" fill="none"/>`;
+    case 'cap': return `
+      <path d="M74 54 C74 22 146 22 146 54 Z" fill="#3B6EA8"/>
+      <ellipse cx="136" cy="54" rx="28" ry="6.5" fill="#2C5687"/>
+      <path d="M110 25 v29 M92 30 q6 12 6 24 M128 30 q-6 12 -6 24" stroke="#2C5687" stroke-width="1.5" fill="none"/>
+      <circle cx="110" cy="25" r="3.5" fill="#2C5687"/>`;
+    case 'flowers': {
+      const pts = [[72, 56], [84, 46], [97, 41], [110, 39], [123, 41], [136, 46], [148, 56]];
+      const cols = ['#E8789A', '#F2C94C', '#9AD0EC', '#E8789A', '#F2C94C', '#9AD0EC', '#E8789A'];
+      return `<path d="M68 60 Q110 28 152 60" stroke="#5E8C4A" stroke-width="3" fill="none"/>` + pts.map(([x, y], i) => `
+        <g transform="translate(${x} ${y})">
+          ${[0, 72, 144, 216, 288].map(a => `<ellipse cx="0" cy="-4.5" rx="3.2" ry="4.5" transform="rotate(${a})" fill="${cols[i]}"/>`).join('')}
+          <circle r="2.6" fill="#FFF3C4"/>
+        </g>`).join('');
+    }
+    case 'sunglasses': return `
+      <rect x="70" y="69" width="35" height="19" rx="8" fill="#151515" stroke="#E9E4DA" stroke-width="2"/>
+      <rect x="115" y="69" width="35" height="19" rx="8" fill="#151515" stroke="#E9E4DA" stroke-width="2"/>
+      <path d="M105 75 q5 -4 10 0" stroke="#E9E4DA" stroke-width="3" fill="none"/>
+      <path d="M76 73 l8 0 M121 73 l8 0" stroke="#FFFFFF" stroke-opacity=".55" stroke-width="2.2" stroke-linecap="round"/>`;
+    case 'glasses': return `
+      <circle cx="88" cy="78" r="13" fill="#FFFFFF" fill-opacity=".14" stroke="#C9A227" stroke-width="2.6"/>
+      <circle cx="132" cy="78" r="13" fill="#FFFFFF" fill-opacity=".14" stroke="#C9A227" stroke-width="2.6"/>
+      <path d="M101 77 q9 -6 18 0" stroke="#C9A227" stroke-width="2.6" fill="none"/>`;
+    case 'scarf': return `
+      <rect x="72" y="111" width="76" height="15" rx="7.5" fill="#C0504D"/>
+      <path d="M118 120 l14 0 l3 26 l-14 2 z" fill="#C0504D"/>
+      <path d="M121 140 l13 -2 M120 134 l13 -2" stroke="#F2EEE7" stroke-width="2"/>
+      <path d="M80 113 v11 M92 112 v13 M104 112 v13" stroke="#A33F3C" stroke-width="2"/>`;
+    case 'bandana': return `
+      <path d="M74 111 L146 111 L110 142 Z" fill="#3B6EA8"/>
+      <rect x="72" y="108" width="76" height="7" rx="3.5" fill="#2C5687"/>
+      ${[[96, 119], [110, 120], [124, 119], [103, 128], [117, 128], [110, 135]].map(([x, y]) => `<circle cx="${x}" cy="${y}" r="1.8" fill="#FFFFFF"/>`).join('')}`;
+    case 'bowtie': return `
+      <path d="M93 109 L110 117 L93 126 Z" fill="#6B4C9A"/>
+      <path d="M127 109 L110 117 L127 126 Z" fill="#6B4C9A"/>
+      <rect x="105" y="112" width="10" height="10" rx="3" fill="#563A80"/>`;
+    default: return '';
+  }
+}
+
+// opts: { scale, mood, holding, look, worn: {head, face, neck}, viewBox }
+function raccoonSVG(opts) {
+  const o = Object.assign({ scale: 1, mood: 'content', holding: '', look: RACCOONS[0], worn: {}, viewBox: '0 0 220 200' }, opts);
+  const L = o.look, scale = o.scale, mood = o.mood, f = L.feature;
+  const pupil = '#1F1C1A';
   const bx = 110, rx = 50 * scale, ry = 38 + (scale - 1) * 14;
-  const tail = [[183, 95, 1], [179, 108, 0], [173, 121, 1], [165, 133, 0], [156, 145, 1], [146, 156, 0]]
-    .map(([x, y, d]) => `<ellipse cx="${x}" cy="${y}" rx="15" ry="13" transform="rotate(-55 ${x} ${y})" fill="${d ? band : '#B3ADA6'}"/>`).join('');
+  const tailPts = f === 'thinStripes'
+    ? [[184, 92], [181, 101], [177, 110], [172, 119], [166, 127], [159, 135], [152, 143], [144, 151], [136, 158]]
+    : [[183, 95], [179, 108], [173, 121], [165, 133], [156, 145], [146, 156]];
+  const trx = f === 'bigTail' ? 19 : f === 'thinStripes' ? 14 : 15;
+  const try_ = f === 'bigTail' ? 16 : f === 'thinStripes' ? 10 : 13;
+  const tail = tailPts.map(([x, y], i) =>
+    `<ellipse cx="${f === 'bigTail' ? x + 4 : x}" cy="${y}" rx="${trx}" ry="${try_}" transform="rotate(-55 ${x} ${y})" fill="${i % 2 === 0 ? L.band : L.tail}"/>`).join('');
+  const footCol = f === 'whiteSocks' ? L.light : L.paw;
+  const ears = f === 'roundEars'
+    ? `<circle cx="80" cy="50" r="13" fill="${L.fur}"/><circle cx="80" cy="51" r="7" fill="${L.paw}"/>
+       <circle cx="140" cy="50" r="13" fill="${L.fur}"/><circle cx="140" cy="51" r="7" fill="${L.paw}"/>`
+    : `<ellipse cx="79" cy="45" rx="13" ry="17" transform="rotate(-25 79 45)" fill="${L.fur}"/>
+       <ellipse cx="79" cy="47" rx="7" ry="10" transform="rotate(-25 79 47)" fill="${L.paw}"/>
+       <ellipse cx="141" cy="45" rx="13" ry="17" transform="rotate(25 141 45)" fill="${L.fur}"/>
+       <ellipse cx="141" cy="47" rx="7" ry="10" transform="rotate(25 141 47)" fill="${L.paw}"/>
+       ${f === 'earTufts' ? `<path d="M68 33 l-3 -10 l9 7 z M152 33 l3 -10 l-9 7 z" fill="${L.band}"/>` : ''}`;
+  const cheeks = f === 'fluffyCheeks'
+    ? `<path d="M58 92 l-8 4 l8 3 l-7 5 l9 1 l2 6 c6 2 14 -2 16 -8 c2 -8 -4 -14 -12 -14 z" fill="${L.tail}"/>
+       <path d="M162 92 l8 4 l-8 3 l7 5 l-9 1 l-2 6 c-6 2 -14 -2 -16 -8 c-2 -8 4 -14 12 -14 z" fill="${L.tail}"/>`
+    : `<ellipse cx="70" cy="96" rx="12" ry="10" fill="${L.tail}"/><ellipse cx="150" cy="96" rx="12" ry="10" fill="${L.tail}"/>`;
+  const stripe = f === 'blaze' ? `<ellipse cx="110" cy="60" rx="5" ry="15" fill="${L.light}"/>` : `<ellipse cx="110" cy="58" rx="6" ry="14" fill="${L.band}"/>`;
+  const nose = f === 'pinkNose' ? '#D9798B' : L.mask;
+  const freckles = f === 'freckles'
+    ? [[100, 100], [97, 104], [103, 105], [120, 100], [123, 104], [117, 105]].map(([x, y]) => `<circle cx="${x}" cy="${y}" r="1.3" fill="${L.band}"/>`).join('')
+    : '';
   let eyes, mouth;
   if (mood === 'happy') {
-    eyes = `<path d="M81 80 q7 -7 14 0 M125 80 q7 -7 14 0" stroke="${light}" stroke-width="3" fill="none" stroke-linecap="round"/>`;
-    mouth = `<path d="M100 101 q10 9 20 0" stroke="${dark}" stroke-width="2.5" fill="none" stroke-linecap="round"/>`;
+    eyes = `<path d="M81 80 q7 -7 14 0 M125 80 q7 -7 14 0" stroke="${L.light}" stroke-width="3" fill="none" stroke-linecap="round"/>`;
+    mouth = `<path d="M100 101 q10 9 20 0" stroke="${L.mask}" stroke-width="2.5" fill="none" stroke-linecap="round"/>`;
   } else if (mood === 'hungry') {
-    eyes = `<circle cx="88" cy="78" r="7" fill="${light}"/><circle cx="132" cy="78" r="7" fill="${light}"/>
-      <circle cx="88" cy="76" r="4.2" fill="#1F1C1A"/><circle cx="132" cy="76" r="4.2" fill="#1F1C1A"/>
+    eyes = `<circle cx="88" cy="78" r="7" fill="${L.light}"/><circle cx="132" cy="78" r="7" fill="${L.light}"/>
+      <circle cx="88" cy="76" r="4.2" fill="${pupil}"/><circle cx="132" cy="76" r="4.2" fill="${pupil}"/>
       <circle cx="89.5" cy="74.5" r="1.4" fill="#fff"/><circle cx="133.5" cy="74.5" r="1.4" fill="#fff"/>`;
-    mouth = `<ellipse cx="110" cy="104" rx="3.5" ry="4" fill="${dark}"/>`;
+    mouth = `<ellipse cx="110" cy="104" rx="3.5" ry="4" fill="${L.mask}"/>`;
   } else {
-    eyes = `<circle cx="88" cy="78" r="5.5" fill="${light}"/><circle cx="132" cy="78" r="5.5" fill="${light}"/>
-      <circle cx="88" cy="78.5" r="3.2" fill="#1F1C1A"/><circle cx="132" cy="78.5" r="3.2" fill="#1F1C1A"/>
+    eyes = `<circle cx="88" cy="78" r="5.5" fill="${L.light}"/><circle cx="132" cy="78" r="5.5" fill="${L.light}"/>
+      <circle cx="88" cy="78.5" r="3.2" fill="${pupil}"/><circle cx="132" cy="78.5" r="3.2" fill="${pupil}"/>
       <circle cx="89.2" cy="77.3" r="1.1" fill="#fff"/><circle cx="133.2" cy="77.3" r="1.1" fill="#fff"/>`;
     if (mood === 'peckish') {
-      eyes += `<path d="M81 72 l12 3 M139 72 l-12 3" stroke="${light}" stroke-width="2.2" stroke-linecap="round"/>`;
-      mouth = `<path d="M103 102 h14" stroke="${dark}" stroke-width="2.5" stroke-linecap="round"/>`;
+      eyes += `<path d="M81 72 l12 3 M139 72 l-12 3" stroke="${L.light}" stroke-width="2.2" stroke-linecap="round"/>`;
+      mouth = `<path d="M103 102 h14" stroke="${L.mask}" stroke-width="2.5" stroke-linecap="round"/>`;
     } else {
-      mouth = `<path d="M103 101 q7 5 14 0" stroke="${dark}" stroke-width="2.5" fill="none" stroke-linecap="round"/>`;
+      mouth = `<path d="M103 101 q7 5 14 0" stroke="${L.mask}" stroke-width="2.5" fill="none" stroke-linecap="round"/>`;
     }
   }
-  const snack = holding ? `<text x="${bx}" y="150" font-size="26" text-anchor="middle" dominant-baseline="middle">${holding}</text>` : '';
-  return `<svg viewBox="0 0 220 200" role="img" aria-label="Your raccoon, ${mood}">
+  const snack = o.holding ? `<text x="${bx}" y="150" font-size="26" text-anchor="middle" dominant-baseline="middle">${o.holding}</text>` : '';
+  const worn = o.worn || {};
+  return `<svg viewBox="${o.viewBox}" role="img" aria-label="${L.name}, ${mood}">
     ${tail}
-    <ellipse cx="${bx - 28 * scale}" cy="184" rx="13" ry="7" fill="${paw}"/>
-    <ellipse cx="${bx + 28 * scale}" cy="184" rx="13" ry="7" fill="${paw}"/>
-    <ellipse cx="${bx}" cy="146" rx="${rx}" ry="${ry}" fill="${fur}"/>
-    <ellipse cx="${bx}" cy="153" rx="${31 * scale}" ry="${26 + (scale - 1) * 10}" fill="${belly}"/>
+    <ellipse cx="${bx - 28 * scale}" cy="184" rx="13" ry="7" fill="${footCol}"/>
+    <ellipse cx="${bx + 28 * scale}" cy="184" rx="13" ry="7" fill="${footCol}"/>
+    <ellipse cx="${bx}" cy="146" rx="${rx}" ry="${ry}" fill="${L.fur}"/>
+    <ellipse cx="${bx}" cy="153" rx="${31 * scale}" ry="${26 + (scale - 1) * 10}" fill="${L.belly}"/>
     ${snack}
-    <ellipse cx="${bx - 24 * scale}" cy="146" rx="7" ry="11" transform="rotate(-25 ${bx - 24 * scale} 146)" fill="${paw}"/>
-    <ellipse cx="${bx + 24 * scale}" cy="146" rx="7" ry="11" transform="rotate(25 ${bx + 24 * scale} 146)" fill="${paw}"/>
-    <ellipse cx="79" cy="45" rx="13" ry="17" transform="rotate(-25 79 45)" fill="${fur}"/>
-    <ellipse cx="79" cy="47" rx="7" ry="10" transform="rotate(-25 79 47)" fill="${paw}"/>
-    <ellipse cx="141" cy="45" rx="13" ry="17" transform="rotate(25 141 45)" fill="${fur}"/>
-    <ellipse cx="141" cy="47" rx="7" ry="10" transform="rotate(25 141 47)" fill="${paw}"/>
-    <ellipse cx="110" cy="82" rx="46" ry="38" fill="${fur}"/>
-    <ellipse cx="70" cy="96" rx="12" ry="10" fill="#B3ADA6"/>
-    <ellipse cx="150" cy="96" rx="12" ry="10" fill="#B3ADA6"/>
-    <ellipse cx="90" cy="63" rx="14" ry="7" fill="${light}"/>
-    <ellipse cx="130" cy="63" rx="14" ry="7" fill="${light}"/>
-    <ellipse cx="110" cy="58" rx="6" ry="14" fill="${band}"/>
-    <ellipse cx="88" cy="79" rx="19" ry="12" fill="${dark}"/>
-    <ellipse cx="132" cy="79" rx="19" ry="12" fill="${dark}"/>
-    <ellipse cx="110" cy="78" rx="10" ry="8" fill="${dark}"/>
-    <ellipse cx="110" cy="97" rx="20" ry="14" fill="${light}"/>
-    <ellipse cx="110" cy="90" rx="6" ry="4.5" fill="${dark}"/>
+    <ellipse cx="${bx - 24 * scale}" cy="146" rx="7" ry="11" transform="rotate(-25 ${bx - 24 * scale} 146)" fill="${footCol}"/>
+    <ellipse cx="${bx + 24 * scale}" cy="146" rx="7" ry="11" transform="rotate(25 ${bx + 24 * scale} 146)" fill="${footCol}"/>
+    ${ears}
+    <ellipse cx="110" cy="82" rx="46" ry="38" fill="${L.fur}"/>
+    ${cheeks}
+    <ellipse cx="90" cy="63" rx="14" ry="7" fill="${L.light}"/>
+    <ellipse cx="130" cy="63" rx="14" ry="7" fill="${L.light}"/>
+    ${stripe}
+    <ellipse cx="88" cy="79" rx="19" ry="12" fill="${L.mask}"/>
+    <ellipse cx="132" cy="79" rx="19" ry="12" fill="${L.mask}"/>
+    <ellipse cx="110" cy="78" rx="10" ry="8" fill="${L.mask}"/>
+    <ellipse cx="110" cy="97" rx="20" ry="14" fill="${L.light}"/>
+    ${freckles}
+    <ellipse cx="110" cy="90" rx="6" ry="4.5" fill="${nose}"/>
     ${eyes}
     ${mouth}
+    ${worn.neck ? trinketSVG(worn.neck) : ''}
+    ${worn.face ? trinketSVG(worn.face) : ''}
+    ${worn.head ? trinketSVG(worn.head) : ''}
+  </svg>`;
+}
+// A trinket on its own, cropped from a raccoon head, for the wardrobe tiles.
+const SLOT_VIEW = { head: '56 12 108 62', face: '62 56 96 44', neck: '62 98 96 54' };
+function trinketTileSVG(id, look) {
+  const t = TRINKETS.find(x => x.id === id);
+  return raccoonSVG({ look, mood: 'content', worn: { [t.slot]: id }, viewBox: SLOT_VIEW[t.slot] });
+}
+
+// A round passport stamp. The angle and ink colour come from the place name, so they never change.
+function stampSVG(stamp, uid) {
+  const inks = ['#2F5A8A', '#B2453E', '#2F6B4A', '#6B4C9A', '#8A5A2B'];
+  const h = hash32(stamp.label);
+  const ink = inks[h % inks.length];
+  const rot = (h % 25) - 12;
+  const top = stamp.town.toUpperCase();
+  const fs = top.length > 16 ? 8.5 : top.length > 11 ? 10 : 11.5;
+  const date = new Date(stamp.first).toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' });
+  const esc = s => String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+  let mid;
+  if (!stamp.district) {
+    mid = `<text x="60" y="59" text-anchor="middle" font-size="14" fill="${ink}">★</text>`;
+  } else if (stamp.district.length <= 12) {
+    mid = `<text x="60" y="58" text-anchor="middle" font-size="12" font-weight="700" fill="${ink}">${esc(stamp.district)}</text>`;
+  } else {
+    // Long district names go on two lines, split at the space nearest the middle.
+    const words = stamp.district.split(' ');
+    let best = 1, bestDiff = Infinity;
+    for (let i = 1; i < words.length; i++) {
+      const diff = Math.abs(words.slice(0, i).join(' ').length - words.slice(i).join(' ').length);
+      if (diff < bestDiff) { bestDiff = diff; best = i; }
+    }
+    const lines = words.length > 1 ? [words.slice(0, best).join(' '), words.slice(best).join(' ')] : [stamp.district];
+    const size = Math.max(...lines.map(l => l.length)) > 13 ? 7.5 : 9;
+    mid = lines.map((l, i) => `<text x="60" y="${lines.length > 1 ? 50 + i * 10 : 58}" text-anchor="middle" font-size="${size}" font-weight="700" fill="${ink}">${esc(l)}</text>`).join('');
+  }
+  return `<svg viewBox="0 0 120 120" role="img" aria-label="${esc(stamp.label)}, first visit ${esc(date)}">
+    <g transform="rotate(${rot} 60 60)" opacity=".88" font-family="IBM Plex Sans, Helvetica, Arial, sans-serif">
+      <circle cx="60" cy="60" r="54" fill="none" stroke="${ink}" stroke-width="3"/>
+      <circle cx="60" cy="60" r="38" fill="none" stroke="${ink}" stroke-width="1.2"/>
+      <path id="arc-${uid}" d="M 16 60 A 44 44 0 0 1 104 60" fill="none"/>
+      <text font-size="${fs}" font-weight="700" letter-spacing="1" fill="${ink}">
+        <textPath href="#arc-${uid}" startOffset="50%" text-anchor="middle">${esc(top)}</textPath>
+      </text>
+      ${mid}
+      <text x="60" y="72" text-anchor="middle" font-size="8.5" fill="${ink}">${esc(date)}</text>
+      <text x="60" y="84" text-anchor="middle" font-size="8.5" fill="${ink}">${stamp.spots} ${stamp.spots === 1 ? 'spot' : 'spots'}</text>
+    </g>
   </svg>`;
 }
 </script>
@@ -1206,9 +1595,7 @@ function raccoonSVG(scale, mood, holding) {
     'https://maps.mail.ru/osm/tools/overpass/api/interpreter',
     'https://overpass.private.coffee/api/interpreter',
   ];
-  const VOTES_KEY = 'pause.votes.v1';
-  const GAME_KEY = 'pause.raccoon.v1';
-  const ADDED_KEY = 'pause.added.v1';
+  const EVENTS_KEY = 'pause.events.v1';
   const TEST = new URLSearchParams(location.search).has('test');   // open with ?test to check in without being there
   const KIND_LABEL = { bench: 'Bench', table: 'Picnic table', toilet: 'Toilet' };
   const ICON_LIKE = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg>';
@@ -1226,39 +1613,93 @@ function raccoonSVG(scale, mood, holding) {
     center: null, place: '', radius: SEARCH_RADIUS,
     spots: [], shown: PAGE, selected: null,
     mode: 'peek',           // peek | list | detail | raccoon | add
+    rtab: 'raccoon', picking: false, pickSel: null,
     ckMsg: '', checking: false, reveal: null,
     pending: 0, failedN: 0,
-    add: { kind: 'bench', backrest: '', msg: '', near: null, done: null, busy: false },
+    add: { kind: 'bench', backrest: '', msg: '', near: null, done: null, busy: false, step: 'form', fix: null, pin: null },
     error: '',
     types: { bench: true, table: true, toilet: true },
-    need: { liked: false, water: false, green: false, quiet: false },
+    need: { liked: false, water: false, green: false, quiet: false, visited: false },
   };
   let searchToken = 0;
 
-  /* ---------- votes (stored on this device for now) ---------- */
-  let votes = {};
-  try { votes = JSON.parse(localStorage.getItem(VOTES_KEY)) || {}; } catch (e) { votes = {}; }
-  const myVote = id => (votes[id] && votes[id].v) || 0;
-  function castVote(s, v) {
-    if (myVote(s.id) === v) delete votes[s.id];
-    else votes[s.id] = { v, t: Date.now(), lat: +s.lat.toFixed(6), lon: +s.lon.toFixed(6), kind: s.kind };
-    try { localStorage.setItem(VOTES_KEY, JSON.stringify(votes)); } catch (e) { /* private mode: votes last for this visit */ }
+  /* ---------- your history, saved on this device for now ----------
+     Every check-in, vote, new pin and choice is one event with a time and coordinates.
+     Totals, the raccoon, trinkets, streaks and stamps are all calculated from this history,
+     so it can later be uploaded to the server exactly as it is. */
+  let events = loadEvents();
+  let me = deriveState(events);
+  let links = { visits: new Map(), votes: new Map() };
+
+  function loadEvents() {
+    try {
+      const saved = JSON.parse(localStorage.getItem(EVENTS_KEY));
+      if (Array.isArray(saved)) return saved;
+    } catch (e) { /* fall through */ }
+    return migrateOldData();
+  }
+  function saveEvents() {
+    try { localStorage.setItem(EVENTS_KEY, JSON.stringify(events)); } catch (e) { /* private mode: lasts for this visit */ }
+  }
+  function record(e) {
+    events.push(e);
+    saveEvents();
+    me = deriveState(events);
+    linkEvents();
+    updateRaccoonButton();
+    return e;
+  }
+  // Earlier versions saved votes, the raccoon and pins separately; turn them into history once.
+  function migrateOldData() {
+    const out = [];
+    try {
+      const g = JSON.parse(localStorage.getItem('pause.raccoon.v1') || 'null');
+      const v = JSON.parse(localStorage.getItem('pause.votes.v1') || 'null');
+      const pins = JSON.parse(localStorage.getItem('pause.added.v1') || 'null') || [];
+      let counted = 0;
+      if (g) {
+        if (g.name) out.push({ type: 'profile', t: 0, name: g.name });
+        const seen = new Set();
+        for (const e of g.log || []) {
+          if (e.added) continue;
+          const vis = (g.visits || {})[e.id] || {};
+          out.push({ type: 'checkin', t: e.t, spot: e.id, lat: vis.lat, lon: vis.lon, emoji: e.emoji, name: e.name, rare: !!e.rare,
+            value: e.value || 0, first: !!e.first, where: e.where || '', place: null });
+          counted += e.value || 0;
+          seen.add(e.id);
+        }
+        for (const [id, vis] of Object.entries(g.visits || {})) {
+          if (id.startsWith('user/') || seen.has(id)) continue;
+          out.push({ type: 'checkin', t: vis.lastTs || 0, spot: id, lat: vis.lat, lon: vis.lon, value: 0, legacy: true, place: null });
+        }
+      }
+      for (const p of pins) {
+        out.push({ type: 'add', t: p.t, id: p.id, kind: p.kind, lat: p.lat, lon: p.lon, tags: p.tags || {}, value: GAME.addReward, place: null });
+        counted += GAME.addReward;
+      }
+      if (g && (g.total || 0) > counted) out.push({ type: 'legacy', t: 0, value: g.total - counted });
+      for (const [id, r] of Object.entries(v || {})) out.push({ type: 'vote', t: r.t || 0, spot: id, lat: r.lat, lon: r.lon, v: r.v });
+    } catch (e) { /* start fresh */ }
+    out.sort((x, y) => (x.t || 0) - (y.t || 0));
+    return out;
   }
 
-  /* ---------- raccoon (stored on this device for now) ---------- */
-  let game = newGame();
-  try { game = Object.assign(newGame(), JSON.parse(localStorage.getItem(GAME_KEY)) || {}); } catch (e) { game = newGame(); }
-  function saveGame() {
-    try { localStorage.setItem(GAME_KEY, JSON.stringify(game)); } catch (e) { /* private mode: progress lasts for this visit */ }
+  const today = () => dayKey(new Date());
+  const visitsOf = id => links.visits.get(id) || [];
+  const myVote = id => (links.votes.get(id) || { v: 0 }).v;
+  const visited = id => visitsOf(id).length > 0;
+  const takenToday = id => visitsOf(id).some(e => dayKey(new Date(e.t)) === today());
+  const canVote = id => !GAME.requireCheckinToVote || visitsOf(id).some(e => Date.now() - e.t <= GAME.voteWindowHours * 3600000);
+  const look = () => raccoonById(me.raccoon);
+  const petName = () => me.name || (me.raccoon ? look().name : 'your raccoon');
+
+  function castVote(s, v) {
+    record({ type: 'vote', t: Date.now(), spot: s.id, lat: +s.lat.toFixed(6), lon: +s.lon.toFixed(6), v: myVote(s.id) === v ? 0 : v });
   }
   function updateRaccoonButton() {
-    $('#snackCount').textContent = game.total;
+    $('#snackCount').textContent = me.total;
   }
-  let added = [];
-  try { added = JSON.parse(localStorage.getItem(ADDED_KEY)) || []; } catch (e) { added = []; }
-  function saveAdded() {
-    try { localStorage.setItem(ADDED_KEY, JSON.stringify(added)); } catch (e) { /* private mode */ }
-  }
+
   function metres(lat1, lon1, lat2, lon2) {
     const k = Math.PI / 180, x = (lon2 - lon1) * k * Math.cos((lat1 + lat2) / 2 * k), y = (lat2 - lat1) * k;
     return Math.hypot(x, y) * 6371000;
@@ -1276,12 +1717,17 @@ function raccoonSVG(scale, mood, holding) {
   const markerLayer = L.layerGroup().addTo(map);
   let areaCircle = null, userMarker = null;
 
+  map.on('zoomend', () => renderMarkers());
   map.on('moveend', () => {
     if (!state.center || state.phase === 'loading') return;
     const c = map.getCenter();
     $('#searchHere').hidden = map.distance(c, [state.center.lat, state.center.lon]) < 300;
   });
-  map.on('click', () => {
+  map.on('click', e => {
+    if (state.mode === 'add' && state.add.step === 'place') {
+      movePin(e.latlng.lat, e.latlng.lng);
+      return;
+    }
     if (state.mode !== 'peek') {
       state.selected = null;
       setMode('peek');
@@ -1412,7 +1858,7 @@ function raccoonSVG(scale, mood, holding) {
   }
 
   function userElements() {
-    return added.map(a => ({
+    return me.pins.map(a => ({
       type: 'user', id: a.id.split('/')[1], lat: a.lat, lon: a.lon,
       tags: Object.assign(a.kind === 'table' ? { leisure: 'picnic_table' } : { amenity: 'bench' }, a.tags || {}),
     }));
@@ -1431,12 +1877,96 @@ function raccoonSVG(scale, mood, holding) {
     const sections = mergeTiles(recs.map(r => r.data));
     sections.spots.push(...userElements());
     state.spots = analyseSections(sections, state.center, SEARCH_RADIUS);
+    linkEvents();
+    if (!placesQueued) {
+      placesQueued = true;
+      events.filter(e => (e.type === 'checkin' || e.type === 'add') && !e.place && e.lat != null).slice(-8).forEach(queuePlace);
+    }
     state.phase = 'ready';
     if (state.selected && !state.spots.some(s => s.id === state.selected)) {
       state.selected = null;
       if (state.mode === 'detail') state.mode = 'peek';
     }
     render();
+  }
+
+  // Visits and votes are saved with coordinates. Match each one to the spot it belongs to now,
+  // so spots can be regrouped when the map changes without losing anything.
+  let placesQueued = false;
+  function linkEvents() {
+    const visits = new Map(), votesBy = new Map();
+    links = { visits, votes: votesBy };
+    if (!state.spots.length || !state.center) return;
+    const memberOf = new Map();
+    for (const s of state.spots) for (const mb of s.members) memberOf.set(mb.id, s);
+    const seatSpots = state.spots.filter(s => s.kind !== 'toilet');
+    const c = state.center, reach = SEARCH_RADIUS + 200;
+    const near = (lat, lon) => {
+      if (metres(lat, lon, c.lat, c.lon) > reach) return null;
+      let best = null, bd = Infinity;
+      for (const s of seatSpots) {
+        for (const mb of s.members) {
+          const d = metres(lat, lon, mb.lat, mb.lon);
+          if (d < bd) { bd = d; best = s; }
+        }
+      }
+      return bd <= GROUP_RADIUS ? best : null;
+    };
+    const spotOf = e => memberOf.get(e.spot || e.id) || (e.lat != null ? near(e.lat, e.lon) : null);
+    for (const e of me.visits) {
+      const s = spotOf(e);
+      if (!s) continue;
+      if (!visits.has(s.id)) visits.set(s.id, []);
+      visits.get(s.id).push(e);
+    }
+    for (const e of me.votes) {
+      const s = spotOf(e);
+      if (!s) continue;
+      const cur = votesBy.get(s.id);
+      if (!cur || e.t >= cur.t) votesBy.set(s.id, e);
+    }
+  }
+
+  /* ---------- passport places ----------
+     After each check-in, OpenStreetMap is asked which town (or city district) and country
+     the spot is in. Offline check-ins are looked up the next time the app opens. */
+  const placeQueue = [];
+  let placeBusy = false;
+  function queuePlace(ev) {
+    if (ev && !ev.place && ev.lat != null) { placeQueue.push(ev); pumpPlaces(); }
+  }
+  async function lookupPlace(lat, lon) {
+    const json = await overpass(`[out:json][timeout:20];is_in(${lat},${lon})->.a;area.a["boundary"="administrative"]["admin_level"];out tags;`);
+    const areas = (json.elements || []).filter(e => e.tags && e.tags.admin_level);
+    const lvl = n => areas.find(a => a.tags.admin_level === String(n));
+    const country = lvl(2);
+    const town = lvl(8) || lvl(7) || lvl(6);
+    const district = town && (town === lvl(8) || town === lvl(7)) ? (lvl(9) || lvl(10)) : null;
+    if (!town && !country) throw new Error('no place found');
+    const cname = country ? (country.tags['name:en'] || country.tags.name) : 'Somewhere';
+    return { country: cname, town: town ? town.tags.name : cname, district: district ? district.tags.name : '' };
+  }
+  async function pumpPlaces() {
+    if (placeBusy) return;
+    placeBusy = true;
+    while (placeQueue.length) {
+      const ev = placeQueue.shift();
+      if (ev.place) continue;
+      try {
+        ev.place = await lookupPlace(ev.lat, ev.lon);
+        saveEvents();
+        me = deriveState(events);
+        linkEvents();
+        placeResolved(ev);
+      } catch (e) { /* stays empty and is tried again next time */ }
+    }
+    placeBusy = false;
+  }
+  function placeResolved(ev) {
+    const label = stampLabel(ev.place);
+    const isNew = !me.visits.some(e => e !== ev && e.place && stampLabel(e.place) === label && e.t <= ev.t);
+    if (state.reveal && state.reveal.t === ev.t) state.reveal.stamp = { label, isNew };
+    if (state.mode === 'detail' || state.mode === 'raccoon') renderPanel();
   }
 
   async function showFailure() {
@@ -1486,9 +2016,10 @@ function raccoonSVG(scale, mood, holding) {
 
   /* ---------- filtering ---------- */
   function passes(s) {
-    if (!state.types[s.kind]) return false;
+    if (s.kind === 'toilet' ? !state.types.toilet : !((state.types.bench && s.hasBench) || (state.types.table && s.hasTable))) return false;
     const n = state.need;
     if (n.liked && myVote(s.id) !== 1) return false;
+    if (n.visited && !visited(s.id)) return false;
     if (n.water && !s.flags.water) return false;
     if (n.green && !s.flags.green) return false;
     if (n.quiet && !s.flags.quiet) return false;
@@ -1509,24 +2040,49 @@ function raccoonSVG(scale, mood, holding) {
       const k = btn.dataset.type;
       btn.setAttribute('aria-pressed', String(state.types[k]));
       btn.querySelector('.count').textContent =
-        state.phase === 'ready' ? state.spots.filter(s => s.kind === k).length : '';
+        state.phase === 'ready' ? state.spots.filter(s => (k === 'toilet' ? s.kind === 'toilet' : k === 'bench' ? s.hasBench : s.hasTable)).length : '';
     });
     document.querySelectorAll('.chip.need').forEach(btn => {
       btn.setAttribute('aria-pressed', String(state.need[btn.dataset.need]));
     });
   }
 
+  // Zoomed out, nearby spots merge into a bubble with a count. Liked and selected
+  // spots always stay visible on their own.
+  const CLUSTER_MAX_ZOOM = 16, CLUSTER_CELL = 40;
   function renderMarkers() {
     markerLayer.clearLayers();
     if (state.phase !== 'ready') return;
     const ink = css('--ink'), paper = css('--paper'), like = css('--like');
+    const z = map.getZoom();
+    const solo = [], cells = new Map();
+    for (const s of visible()) {
+      if (z > CLUSTER_MAX_ZOOM || s.id === state.selected || myVote(s.id) === 1) { solo.push(s); continue; }
+      const p = map.project([s.lat, s.lon], z);
+      const key = Math.floor(p.x / CLUSTER_CELL) + ',' + Math.floor(p.y / CLUSTER_CELL);
+      if (!cells.has(key)) cells.set(key, []);
+      cells.get(key).push(s);
+    }
+    for (const group of cells.values()) {
+      if (group.length === 1) { solo.push(group[0]); continue; }
+      const lat = group.reduce((n, s) => n + s.lat, 0) / group.length;
+      const lon = group.reduce((n, s) => n + s.lon, 0) / group.length;
+      const size = group.length < 10 ? 28 : group.length < 50 ? 34 : 40;
+      L.marker([lat, lon], {
+        icon: L.divIcon({ className: 'bubble-wrap', html: `<div class="bubble">${group.length}</div>`, iconSize: [size, size], iconAnchor: [size / 2, size / 2] }),
+        title: `${group.length} spots, tap to zoom in`,
+      }).on('click', () => {
+        map.fitBounds(L.latLngBounds(group.map(s => [s.lat, s.lon])).pad(0.4), { maxZoom: CLUSTER_MAX_ZOOM + 2, animate: !reduceMotion });
+      }).addTo(markerLayer);
+    }
     // Draw order puts liked and selected pins on top.
     const rank = s => (s.id === state.selected ? 3 : myVote(s.id) === 1 ? 2 : myVote(s.id) === -1 ? 0 : 1);
-    const list = visible().sort((a, b) => rank(a) - rank(b));
-    for (const s of list) {
+    solo.sort((a, b) => rank(a) - rank(b));
+    for (const s of solo) {
       const sel = s.id === state.selected, v = myVote(s.id);
+      const group = s.members.length > 1;
       L.circleMarker([s.lat, s.lon], {
-        radius: sel ? 10 : v === 1 ? 8 : v === -1 ? 5 : 6,
+        radius: sel ? 10 : v === 1 ? 8 : v === -1 ? 5 : group ? 7 : 6,
         color: sel ? ink : v === 1 ? like : s.added ? ink : paper,
         weight: sel || v === 1 ? 3 : s.added ? 2 : 1.5,
         fillColor: colorOf(s.kind),
@@ -1626,82 +2182,151 @@ function raccoonSVG(scale, mood, holding) {
   }
 
   function visitTag(s) {
-    if (!game.visits[s.id]) return '';
-    return `<span class="tag">${takenToday(game, s.id, Date.now()) ? 'Snack taken' : 'Visited'}</span>`;
+    if (!visited(s.id)) return '';
+    return `<span class="tag">${takenToday(s.id) ? 'Snack taken' : 'Visited'}</span>`;
   }
 
   function checkinHTML(s) {
     if (s.kind === 'toilet') return '';
     const now = Date.now();
     const r = state.reveal && state.reveal.id === s.id ? state.reveal : null;
-    if (r && !r.already) {
+    if (r) {
       const name = (r.snack.rare ? 'golden ' : '') + r.snack.name;
       const lines = [];
       if (r.snack.rare) lines.push(`Rare find! It counts as ${GAME.rareValue} snacks.`);
       if (r.first) lines.push('First visit, so one extra snack.');
-      lines.push(`${game.name || 'Your raccoon'} has now eaten ${game.total}.`);
-      return `<div class="checkin${r.snack.rare ? ' rare' : ''}">
+      if (r.streakBonus) lines.push('Your weekly streak continues: one extra snack.');
+      lines.push(`${cap(petName())} has now eaten ${me.total}.`);
+      if (r.stamp) lines.push(r.stamp.isNew ? `New passport stamp: ${r.stamp.label}.` : `Stamped in ${r.stamp.label}.`);
+      const trinket = r.trinket ? TRINKETS.find(t => t.id === r.trinket) : null;
+      return `<div class="checkin${r.snack.rare || trinket ? ' rare' : ''}">
         <div class="reveal"><span class="snack" aria-hidden="true">${r.snack.emoji}</span>
-          <span class="reveal-text"><strong>${esc(cap(name))} for ${esc(game.name || 'your raccoon')}!</strong>${lines.map(l => `<span>${esc(l)}</span>`).join('')}</span>
+          <span class="reveal-text"><strong>${esc(cap(name))} for ${esc(petName())}!</strong>${lines.map(l => `<span>${esc(l)}</span>`).join('')}</span>
         </div>
+        ${trinket ? `<p class="found"><span aria-hidden="true">✨</span> ${esc(cap(petName()))} found a trinket: ${esc(trinket.name)}! <button class="link-btn" type="button" data-act="openWardrobe">Put it on</button></p>` : ''}
+        ${!me.raccoon ? '<p class="found">Your raccoon doesn’t have a face yet. <button class="link-btn" type="button" data-act="openRaccoon">Choose one</button></p>' : ''}
       </div>`;
     }
-    if (takenToday(game, s.id, now)) {
+    if (takenToday(s.id)) {
       const sn = snackFor(s.id, dayKey(new Date(now)));
       return `<div class="checkin"><p class="ck-lead"><span class="ck-emoji" aria-hidden="true">${sn.emoji}</span> You took today’s snack here. Come back tomorrow for another.</p></div>`;
     }
-    const first = !game.visits[s.id];
+    const first = !visited(s.id);
     return `<div class="checkin">
       <p class="ck-lead">A snack is waiting here today${first ? ', and a first visit earns one extra' : ''}.</p>
       <button class="ck-btn" type="button" data-act="checkin"${state.checking ? ' disabled' : ''}>${state.checking ? 'Checking your location…' : 'Check in and grab the snack'}</button>
-      <p class="ck-msg">${esc(state.ckMsg || (TEST ? 'Test mode: your location isn’t checked.' : `Works within ${GAME.checkinRadius} m of the ${s.kind === 'table' ? 'table' : 'bench'}.`))}</p>
+      <p class="ck-msg">${esc(state.ckMsg || (TEST ? 'Test mode: your location isn’t checked.' : `Works within ${GAME.checkinRadius} m of the spot.`))}</p>
     </div>`;
   }
 
+  /* ---------- raccoon panel: raccoon, wardrobe, passport ---------- */
   function raccoonHTML() {
+    if (!me.raccoon || state.picking) return pickHTML();
+    const tabs = [['raccoon', 'Raccoon'], ['wardrobe', 'Wardrobe'], ['passport', 'Passport']];
+    const body = state.rtab === 'wardrobe' ? wardrobeHTML() : state.rtab === 'passport' ? passportHTML() : raccoonTabHTML();
+    return `<div class="detail">
+      <div class="detail-nav"><button class="link-btn" type="button" data-act="back">Back to list</button></div>
+      <div class="tabs" role="tablist" aria-label="Your raccoon">${tabs.map(([k, l]) =>
+        `<button type="button" role="tab" class="tab" data-act="rtab" data-v="${k}" aria-selected="${state.rtab === k}">${l}</button>`).join('')}</div>
+      ${body}
+    </div>`;
+  }
+
+  function art() {
+    const st = stageOf(me.total), mood = moodOf(me.lastFed, Date.now());
+    const last = me.visits.filter(e => e.emoji).sort((a, b) => b.t - a.t)[0];
+    return raccoonSVG({ scale: st.scale, mood: mood.key, holding: mood.key === 'happy' && last ? last.emoji : '', look: look(), worn: me.worn });
+  }
+
+  function raccoonTabHTML() {
     const now = Date.now();
-    const st = stageOf(game.total), mood = moodOf(game, now);
-    const last = game.log[0];
-    const holding = mood.key === 'happy' && last ? last.emoji : '';
-    const name = game.name || 'Your raccoon';
-    const benches = Object.keys(game.visits).length;
+    const st = stageOf(me.total), mood = moodOf(me.lastFed, now);
+    const spots = new Set(me.visits.map(e => e.spot || e.id)).size;
     const progress = st.next ? `${st.toNext} more ${st.toNext === 1 ? 'snack' : 'snacks'} until it’s ${st.next.label.toLowerCase()}.` : 'As round as a raccoon gets.';
+    const streak = streakOf(me.visits.map(e => e.t), now);
+    const streakLine = streak.weeks
+      ? `${streak.weeks}-week streak. ${streak.thisWeek ? 'This week already counts.' : 'Check in this week to keep it going and get an extra snack.'}`
+      : 'Check in at least once a week to build a weekly streak.';
     const when = t => {
       const d = Math.round((new Date(now).setHours(0, 0, 0, 0) - new Date(t).setHours(0, 0, 0, 0)) / 86400000);
       return d === 0 ? 'Today' : d === 1 ? 'Yesterday' : new Date(t).toLocaleDateString(undefined, { day: 'numeric', month: 'short' });
     };
-    const log = game.log.length
-      ? `<ul class="log">${game.log.slice(0, 15).map(e => `<li class="${e.rare ? 'rare' : ''}">
-          <span class="em" aria-hidden="true">${e.emoji}</span>
-          <span class="what">${esc(cap((e.rare ? 'golden ' : '') + e.name))}<span class="where">${esc(e.where)}</span></span>
-          <span class="val">+${e.value}<small>${when(e.t)}</small></span>
-        </li>`).join('')}</ul>`
+    const recent = me.visits.filter(e => !e.legacy).sort((a, b) => b.t - a.t).slice(0, 15);
+    const log = recent.length
+      ? `<ul class="log">${recent.map(e => {
+          const added = e.type === 'add';
+          const label = added ? (e.kind === 'table' ? 'New picnic table' : 'New bench') : cap((e.rare ? 'golden ' : '') + e.name);
+          const trinket = e.trinket ? TRINKETS.find(t => t.id === e.trinket) : null;
+          return `<li class="${e.rare ? 'rare' : ''}">
+            <span class="em" aria-hidden="true">${added ? '📍' : e.emoji}</span>
+            <span class="what">${esc(label)}${trinket ? ` and a ${esc(trinket.name)}` : ''}<span class="where">${esc(added ? 'Added by you' : e.where || '')}</span></span>
+            <span class="val">+${e.value}<small>${when(e.t)}</small></span>
+          </li>`;
+        }).join('')}</ul>`
       : '<p class="fine">No snacks yet. Find a bench, check in, and your raccoon gets its first meal.</p>';
-    return `<div class="detail">
-      <div class="detail-nav"><button class="link-btn" type="button" data-act="back">Back to list</button></div>
-      <div class="raccoon-art">${raccoonSVG(st.scale, mood.key, holding)}</div>
-      <div class="rc-head"><h2 class="rc-name">${esc(name)}</h2><button class="link-btn" type="button" data-act="rename">${game.name ? 'Rename' : 'Name it'}</button></div>
+    return `<div class="raccoon-art">${art()}</div>
+      <div class="rc-head"><h2 class="rc-name">${esc(cap(petName()))}</h2><button class="link-btn" type="button" data-act="rename">Rename</button></div>
       <p class="rc-line">${esc(st.label)}. ${esc(mood.label)}.</p>
-      <p class="rc-line quiet">${game.total} ${game.total === 1 ? 'snack' : 'snacks'} eaten at ${benches} ${benches === 1 ? 'bench' : 'benches'}${game.rares ? `, ${game.rares} golden` : ''}. ${progress}</p>
+      <p class="rc-line quiet">${me.total} ${me.total === 1 ? 'snack' : 'snacks'} eaten at ${spots} ${spots === 1 ? 'spot' : 'spots'}${me.rares ? `, ${me.rares} golden` : ''}. ${progress}</p>
+      <p class="rc-line quiet">${esc(streakLine)}</p>
+      <p class="rc-line"><button class="link-btn" type="button" data-act="openPick">Switch raccoon</button></p>
       <p class="rc-section">Recent snacks</p>
       ${log}
-      <p class="fine">Check in within ${GAME.checkinRadius} m of a bench or picnic table to grab its snack. Each one gives a snack once a day, first visits give an extra one, and about 1 in ${GAME.rareOneIn} snacks is golden and counts as ${GAME.rareValue}.${TEST ? ' Test mode is on, so your location isn’t checked.' : ''}</p>
+      <p class="fine">Check in within ${GAME.checkinRadius} m of a spot to grab its snack. Each spot gives a snack once a day, first visits give an extra one, about 1 in ${GAME.rareOneIn} snacks is golden and counts as ${GAME.rareValue}, and about 1 in ${GAME.trinketOneIn} check-ins finds a trinket.${TEST ? ' Test mode is on, so your location isn’t checked.' : ''}</p>`;
+  }
+
+  function wardrobeHTML() {
+    const found = me.trinkets.length;
+    const slots = SLOTS.map(([slot, label]) => `<p class="rc-section">${label}</p>
+      <div class="tiles">${TRINKETS.filter(t => t.slot === slot).map(t => me.trinkets.includes(t.id)
+        ? `<button class="tile" type="button" data-act="wear" data-slot="${slot}" data-v="${t.id}" aria-pressed="${me.worn[slot] === t.id}">${trinketTileSVG(t.id, look())}<span>${esc(cap(t.name))}</span></button>`
+        : '<div class="tile locked"><span class="q" aria-hidden="true">?</span><span>Not found yet</span></div>').join('')}</div>`).join('');
+    return `<div class="raccoon-art small">${art()}</div>
+      <p class="rc-line quiet">${found} of ${TRINKETS.length} trinkets found. About 1 in ${GAME.trinketOneIn} check-ins finds one you don’t have yet. Tap a trinket to put it on or take it off.</p>
+      ${slots}`;
+  }
+
+  function passportHTML() {
+    const pp = passportOf(me.visits);
+    const stamps = pp.reduce((n, c) => n + c.stamps.length, 0);
+    const pending = me.visits.filter(e => !e.place && e.lat != null).length;
+    const summary = stamps
+      ? `${stamps} ${stamps === 1 ? 'stamp' : 'stamps'} from ${pp.length} ${pp.length === 1 ? 'country' : 'countries'}.`
+      : 'No stamps yet. Every town you check in at adds one, and big cities give one per district.';
+    return `<p class="rc-line quiet passport-intro">${esc(summary)}${pending ? ` ${pending} ${pending === 1 ? 'stamp is' : 'stamps are'} still being looked up and will appear when your phone is online.` : ''}</p>
+      ${pp.map(c => `<p class="rc-section">${esc(c.country)}</p>
+        <div class="stamps">${c.stamps.map((st, i) => `<div class="stamp">${stampSVG(st, 'st' + hash32(c.country + st.label) + '_' + i)}</div>`).join('')}</div>`).join('')}
+      ${me.visits.length ? '<div class="actions"><button type="button" class="go" data-act="showVisited">Show my spots on the map</button></div>' : ''}`;
+  }
+
+  function pickHTML() {
+    const sel = state.pickSel || me.raccoon;
+    const switching = !!me.raccoon;
+    return `<div class="detail">
+      <div class="detail-nav"><button class="link-btn" type="button" data-act="${switching ? 'pickBack' : 'back'}">${switching ? 'Back' : 'Back to list'}</button></div>
+      <h2 class="add-title">${switching ? 'Switch raccoon' : 'Choose your raccoon'}</h2>
+      <p class="fine">${switching ? 'Your snacks, trinkets and stamps stay with you.' : 'It eats the snacks you find at benches and picnic tables. You can rename it, and switch later without losing anything.'}</p>
+      <div class="pick-grid">${RACCOONS.map(r => `<button class="pick" type="button" data-act="pickSel" data-v="${r.id}" aria-pressed="${sel === r.id}">
+          ${raccoonSVG({ look: r, mood: 'content', scale: 1 })}
+          <span class="pick-name">${esc(r.name)}</span><span class="pick-line">${esc(r.line)}</span>
+        </button>`).join('')}</div>
+      <button class="ck-btn" type="button" data-act="pickConfirm"${sel ? '' : ' disabled'}>${sel ? `Choose ${esc(raccoonById(sel).name)}` : 'Tap a raccoon to choose it'}</button>
     </div>`;
   }
 
   function addHTML() {
     const a = state.add;
-    const left = GAME.addsPerDay - addsToday(added, Date.now());
+    const left = GAME.addsPerDay - me.adds.filter(e => dayKey(new Date(e.t)) === today()).length;
     const seg = (act, value, label, cur) =>
       `<button class="segbtn" type="button" data-act="${act}" data-v="${value}" aria-pressed="${cur === value}">${label}</button>`;
     if (a.done) {
-      const rec = added.find(x => x.id === a.done);
+      const rec = me.pins.find(x => x.id === a.done);
       const note = rec ? `https://www.openstreetmap.org/note/new#map=19/${rec.lat.toFixed(6)}/${rec.lon.toFixed(6)}` : '#';
       return `<div class="detail">
         <div class="detail-nav"><button class="link-btn" type="button" data-act="back">Back to list</button></div>
         <div class="checkin rare"><div class="reveal"><span class="snack" aria-hidden="true">📍</span>
           <span class="reveal-text"><strong>New ${a.kind === 'table' ? 'picnic table' : 'bench'} added!</strong>
-          <span>${esc(game.name || 'Your raccoon')} gets ${GAME.addReward} snacks and has now eaten ${game.total}.</span></span></div></div>
+          <span>${esc(cap(petName()))} gets ${GAME.addReward} snacks and has now eaten ${me.total}.</span></span></div></div>
         <p class="fine">The pin is saved on this phone for now. Telling OpenStreetMap about it puts it on the map for everyone.</p>
         <div class="actions">
           <button type="button" class="go" data-act="openAdded">Open it</button>
@@ -1709,10 +2334,21 @@ function raccoonSVG(scale, mood, holding) {
         </div>
       </div>`;
     }
+    if (a.step === 'place') {
+      const what = a.kind === 'table' ? 'picnic table' : 'bench';
+      return `<div class="detail">
+        <div class="detail-nav"><button class="link-btn" type="button" data-act="addCancel">Cancel</button></div>
+        <h2 class="add-title">Drag the pin onto the ${what}</h2>
+        <p class="fine">GPS can be a few metres off, so move the pin to exactly where the ${what} is: drag it, or tap the map. It can go up to ${GAME.addMaxDistance} m from you. <span id="pinDist">${pinDistText()}</span></p>
+        <button class="ck-btn" type="button" data-act="addConfirm">Add the ${what} here</button>
+        <p class="ck-msg">${esc(a.msg)}</p>
+        ${a.near ? '<div class="actions"><button type="button" class="plain" data-act="openNear">Open the mapped one</button></div>' : ''}
+      </div>`;
+    }
     return `<div class="detail">
       <div class="detail-nav"><button class="link-btn" type="button" data-act="back">Back to list</button></div>
       <h2 class="add-title">Add a missing bench</h2>
-      <p class="fine">Stand right next to it, then tap Add. The pin goes where you’re standing, and ${esc(game.name || 'your raccoon')} gets ${GAME.addReward} snacks.</p>
+      <p class="fine">Stand next to it and tap Add. A pin appears where you’re standing, and you can then drag it onto the exact spot. ${esc(cap(petName()))} gets ${GAME.addReward} snacks.</p>
       <p class="field-label">What is it?</p>
       <div class="seg" role="group" aria-label="Type">${seg('addKind', 'bench', 'Bench', a.kind)}${seg('addKind', 'table', 'Picnic table', a.kind)}</div>
       ${a.kind === 'bench' ? `<p class="field-label">Does it have a backrest?</p>
@@ -1725,7 +2361,7 @@ function raccoonSVG(scale, mood, holding) {
 
   function detailHTML(s) {
     const mv = myVote(s.id);
-    const canV = s.kind === 'toilet' || canVote(game, s.id, Date.now());
+    const canV = s.kind === 'toilet' || canVote(s.id);
     const dir = `https://www.google.com/maps/dir/?api=1&destination=${s.lat},${s.lon}&travelmode=bicycling`;
     const osm = `https://www.openstreetmap.org/${s.osmType}/${s.osmId}`;
     const gone = `https://www.openstreetmap.org/note/new#map=19/${s.lat.toFixed(6)}/${s.lon.toFixed(6)}`;
@@ -1735,7 +2371,7 @@ function raccoonSVG(scale, mood, holding) {
         <button class="link-btn" type="button" data-act="back">Back to list</button>
         <span class="dist">${fmtDist(s.dist)} away</span>
       </div>
-      <p class="kind"><span class="dot" style="--c:${colorOf(s.kind)}" aria-hidden="true"></span>${KIND_LABEL[s.kind]}${s.added ? ', added by you' : ''}</p>
+      <p class="kind"><span class="dot" style="--c:${colorOf(s.kind)}" aria-hidden="true"></span>${s.members.length > 1 ? `${s.members.length} seats in one spot` : KIND_LABEL[s.kind]}${s.added ? ', added by you' : ''}</p>
       ${summaryHTML(s.text, true)}
       ${checkinHTML(s)}
       <div class="votes" role="group" aria-label="Your vote">
@@ -1760,6 +2396,7 @@ function raccoonSVG(scale, mood, holding) {
 
   /* ---------- interaction ---------- */
   function setMode(mode) {
+    if (mode !== 'add') clearPlacing();
     state.mode = mode;
     renderPanel();
   }
@@ -1772,7 +2409,7 @@ function raccoonSVG(scale, mood, holding) {
       if (!map.getBounds().pad(-0.15).contains(ll)) map.panTo(ll, opts);
       return;
     }
-    const z = Math.max(map.getZoom(), 16);
+    const z = Math.max(map.getZoom(), CLUSTER_MAX_ZOOM + 1);
     const h = $('#panel').offsetHeight;
     const p = map.project(ll, z).add([0, h / 2]);
     map.setView(map.unproject(p, z), z, opts);
@@ -1791,13 +2428,20 @@ function raccoonSVG(scale, mood, holding) {
   }
 
   function finishCheckin(s) {
-    const r = applyCheckin(game, s, Date.now());
-    saveGame();
-    state.reveal = Object.assign({ id: s.id }, r);
+    if (takenToday(s.id)) { renderPanel(); return; }
+    const now = Date.now();
+    const first = !visited(s.id);
+    const r = rollCheckin(s.id, now, first, me.visits.map(e => e.t), me.trinkets);
+    const ev = record({
+      type: 'checkin', t: now, spot: s.id, lat: +s.lat.toFixed(6), lon: +s.lon.toFixed(6),
+      emoji: r.snack.emoji, name: r.snack.name, rare: r.snack.rare, value: r.value, first,
+      streakBonus: r.streakBonus, trinket: r.trinket, where: s.text.sentence, place: null,
+    });
+    state.reveal = Object.assign({ id: s.id, t: now, stamp: null }, r);
     state.ckMsg = '';
     renderPanel();
     renderMarkers();
-    updateRaccoonButton();
+    queuePlace(ev);
   }
 
   function checkIn(s) {
@@ -1816,7 +2460,7 @@ function raccoonSVG(scale, mood, holding) {
       if (state.selected !== s.id) return;
       const { latitude, longitude, accuracy } = pos.coords;
       drawUser({ lat: latitude, lon: longitude }, accuracy);
-      const d = metres(latitude, longitude, s.lat, s.lon);
+      const d = Math.min(...s.members.map(mb => metres(latitude, longitude, mb.lat, mb.lon)));
       if (accuracy > GAME.maxAccuracy) {
         state.ckMsg = `Your location is only accurate to about ${Math.round(accuracy)} m. Try again from a more open spot.`;
       } else if (d > GAME.checkinRadius + Math.min(accuracy, GAME.accuracySlack)) {
@@ -1835,40 +2479,131 @@ function raccoonSVG(scale, mood, holding) {
     }, { enableHighAccuracy: true, timeout: 15000, maximumAge: 10000 });
   }
 
+  /* ---------- placing a new pin ---------- */
+  let pinMarker = null, fixCircle = null;
+
+  function pinDistText() {
+    const a = state.add;
+    if (!a.fix || !a.pin) return '';
+    const d = metres(a.fix.lat, a.fix.lon, a.pin.lat, a.pin.lon);
+    return d < 3 ? 'It’s where you’re standing now.' : `It’s now ${fmtDist(d)} from you.`;
+  }
+
+  // Keeps the pin within reach of where you're standing.
+  function clampToFix(lat, lon) {
+    const f = state.add.fix;
+    const d = metres(f.lat, f.lon, lat, lon);
+    if (d <= GAME.addMaxDistance) return { lat, lon };
+    const k = GAME.addMaxDistance / d;
+    return { lat: f.lat + (lat - f.lat) * k, lon: f.lon + (lon - f.lon) * k };
+  }
+
+  function movePin(lat, lon) {
+    const a = state.add;
+    if (!a.fix) return;
+    a.pin = clampToFix(lat, lon);
+    if (pinMarker) pinMarker.setLatLng([a.pin.lat, a.pin.lon]);
+    a.msg = '';
+    a.near = null;
+    const el = document.getElementById('pinDist');
+    if (el) el.textContent = pinDistText();
+    const msg = document.querySelector('#panelBody .ck-msg');
+    if (msg) msg.textContent = '';
+  }
+
+  function clearPlacing() {
+    if (pinMarker) { pinMarker.remove(); pinMarker = null; }
+    if (fixCircle) { fixCircle.remove(); fixCircle = null; }
+  }
+
+  function enterPlacing(lat, lon) {
+    const a = state.add;
+    a.fix = { lat, lon };
+    a.pin = { lat, lon };
+    a.step = 'place';
+    a.msg = '';
+    a.near = null;
+    clearPlacing();
+    fixCircle = L.circle([lat, lon], {
+      radius: GAME.addMaxDistance, color: css('--ink-2'), weight: 1.5, dashArray: '4 5',
+      fillColor: css('--ink-3'), fillOpacity: 0.06, interactive: false,
+    }).addTo(map);
+    pinMarker = L.marker([lat, lon], {
+      draggable: true,
+      autoPan: true,
+      keyboard: true,
+      title: 'New pin, drag to move',
+      icon: L.divIcon({
+        className: 'drop-pin-wrap',
+        html: `<div class="drop-pin" style="--c:${colorOf(a.kind)}"></div>`,
+        iconSize: [30, 30],
+        iconAnchor: [15, 36],
+      }),
+      zIndexOffset: 1000,
+    }).addTo(map);
+    pinMarker.on('drag', e => {
+      const ll = e.target.getLatLng();
+      const c = clampToFix(ll.lat, ll.lng);
+      if (c.lat !== ll.lat || c.lon !== ll.lng) e.target.setLatLng([c.lat, c.lon]);
+      a.pin = c;
+      const el = document.getElementById('pinDist');
+      if (el) el.textContent = pinDistText();
+    });
+    pinMarker.on('dragend', e => {
+      const ll = e.target.getLatLng();
+      movePin(ll.lat, ll.lng);
+    });
+    renderPanel();
+    // Zoom in close, with the pin above the bottom sheet on phones.
+    requestAnimationFrame(() => {
+      const z = 19, ll = L.latLng(lat, lon);
+      const h = wide.matches ? 0 : $('#panel').offsetHeight;
+      map.setView(map.unproject(map.project(ll, z).add([0, h / 2]), z), z, { animate: !reduceMotion });
+    });
+  }
+
+  function confirmPin() {
+    const a = state.add;
+    if (!a.pin) return;
+    placeNewPin(a.pin.lat, a.pin.lon);
+  }
+
   function placeNewPin(lat, lon) {
     const a = state.add, now = Date.now();
-    const nearest = state.spots
-      .filter(s => s.kind !== 'toilet')
-      .map(s => ({ s, d: metres(lat, lon, s.lat, s.lon) }))
-      .sort((x, y) => x.d - y.d)[0];
+    let nearest = null;
+    for (const s of state.spots) {
+      if (s.kind === 'toilet') continue;
+      for (const mb of s.members) {
+        const d = metres(lat, lon, mb.lat, mb.lon);
+        if (!nearest || d < nearest.d) nearest = { s, mb, d };
+      }
+    }
     if (nearest && nearest.d < GAME.addMinGap) {
-      a.msg = `There’s already a ${nearest.s.kind === 'table' ? 'picnic table' : 'bench'} mapped ${fmtDist(nearest.d)} from you. It’s probably this one.`;
+      a.msg = `There’s already a ${nearest.mb.kind === 'table' ? 'picnic table' : 'bench'} mapped ${fmtDist(nearest.d)} from the pin. It’s probably part of this spot.`;
       a.near = nearest.s.id;
       renderPanel();
       return;
     }
     const tags = a.kind === 'bench' && a.backrest ? { backrest: a.backrest } : {};
-    const rec = { id: 'user/' + now, kind: a.kind, lat: +lat.toFixed(6), lon: +lon.toFixed(6), tags, t: now };
-    added.push(rec);
-    saveAdded();
-    applyAdd(game, rec, now);
-    saveGame();
-    updateRaccoonButton();
+    const rec = record({ type: 'add', t: now, id: 'user/' + now, kind: a.kind, lat: +lat.toFixed(6), lon: +lon.toFixed(6), tags, value: GAME.addReward, place: null });
+    queuePlace(rec);
     a.done = rec.id;
+    a.step = 'form';
     a.msg = '';
     a.near = null;
+    clearPlacing();
     refresh();
   }
 
   function addHere() {
     const a = state.add;
     if (a.busy) return;
-    if (addsToday(added, Date.now()) >= GAME.addsPerDay) { renderPanel(); return; }
+    if (me.adds.filter(e => dayKey(new Date(e.t)) === today()).length >= GAME.addsPerDay) { renderPanel(); return; }
     a.msg = '';
     a.near = null;
     if (TEST) {
       const c = map.getCenter();
-      placeNewPin(c.lat, c.lng);
+      enterPlacing(c.lat, c.lng);
       return;
     }
     if (!('geolocation' in navigator)) {
@@ -1893,7 +2628,7 @@ function raccoonSVG(scale, mood, holding) {
         showAround({ lat: latitude, lon: longitude }, 'you');
         return;
       }
-      placeNewPin(latitude, longitude);
+      enterPlacing(latitude, longitude);
     }, err => {
       a.busy = false;
       a.msg = err.code === 1
@@ -1926,6 +2661,12 @@ function raccoonSVG(scale, mood, holding) {
       renderPanel();
     } else if (act === 'addHere') {
       addHere();
+    } else if (act === 'addConfirm') {
+      confirmPin();
+    } else if (act === 'addCancel') {
+      clearPlacing();
+      Object.assign(state.add, { step: 'form', fix: null, pin: null, msg: '', near: null });
+      renderPanel();
     } else if (act === 'openAdded') {
       const id = state.add.done;
       state.add.done = null;
@@ -1937,24 +2678,60 @@ function raccoonSVG(scale, mood, holding) {
       openSpot(id);
     } else if (act === 'removeAdded') {
       const s = selectedSpot();
-      if (!s || !s.added) return;
+      if (!s || !s.added || s.members.length > 1) return;
       if (!confirm(`Remove this pin? Your raccoon gives back its ${GAME.addReward} snacks.`)) return;
-      added = added.filter(a => a.id !== s.id);
-      saveAdded();
-      undoAdd(game, s.id);
-      saveGame();
-      updateRaccoonButton();
+      record({ type: 'remove', t: Date.now(), id: s.id });
       state.selected = null;
       state.mode = wide.matches ? 'peek' : 'list';
       refresh();
+    } else if (act === 'rtab') {
+      state.rtab = el.dataset.v;
+      renderPanel();
+      $('#panelBody').scrollTop = 0;
+    } else if (act === 'pickSel') {
+      state.pickSel = el.dataset.v;
+      const top = $('#panelBody').scrollTop;
+      renderPanel();
+      $('#panelBody').scrollTop = top;
+    } else if (act === 'pickConfirm') {
+      const sel = state.pickSel || me.raccoon;
+      if (!sel) return;
+      if (sel !== me.raccoon) record({ type: 'profile', t: Date.now(), raccoon: sel });
+      state.picking = false;
+      state.pickSel = null;
+      state.rtab = 'raccoon';
+      renderPanel();
+      $('#panelBody').scrollTop = 0;
+    } else if (act === 'pickBack') {
+      state.picking = false;
+      state.pickSel = null;
+      renderPanel();
+    } else if (act === 'openPick' || act === 'openRaccoon' || act === 'openWardrobe') {
+      state.selected = null;
+      state.reveal = null;
+      state.picking = act === 'openPick' && !!me.raccoon;
+      state.pickSel = null;
+      state.rtab = act === 'openWardrobe' ? 'wardrobe' : 'raccoon';
+      setMode('raccoon');
+      renderMarkers();
+      $('#panelBody').scrollTop = 0;
+    } else if (act === 'wear') {
+      const slot = el.dataset.slot, id = el.dataset.v;
+      record({ type: 'wear', t: Date.now(), slot, item: me.worn[slot] === id ? null : id });
+      const top = $('#panelBody').scrollTop;
+      renderPanel();
+      $('#panelBody').scrollTop = top;
+    } else if (act === 'showVisited') {
+      state.need.visited = true;
+      closeOverlay();
+      render();
     } else if (act === 'checkin') {
       const s = selectedSpot();
       if (s) checkIn(s);
     } else if (act === 'rename') {
-      const n = prompt('What should your raccoon be called?', game.name || '');
+      const n = prompt('What should your raccoon be called?', petName());
       if (n !== null) {
-        game.name = n.trim().slice(0, 24);
-        saveGame();
+        record({ type: 'profile', t: Date.now(), name: n.trim().slice(0, 24) });
         renderPanel();
       }
     } else if (act === 'more') {
@@ -2005,7 +2782,7 @@ function raccoonSVG(scale, mood, holding) {
     if (state.mode === 'add') { closeOverlay(); return; }
     state.selected = null;
     state.reveal = null;
-    state.add = { kind: 'bench', backrest: '', msg: '', near: null, done: null, busy: false };
+    state.add = { kind: 'bench', backrest: '', msg: '', near: null, done: null, busy: false, step: 'form', fix: null, pin: null };
     setMode('add');
     renderMarkers();
     $('#panelBody').scrollTop = 0;
@@ -2015,6 +2792,9 @@ function raccoonSVG(scale, mood, holding) {
     if (state.mode === 'raccoon') { closeOverlay(); return; }
     state.selected = null;
     state.reveal = null;
+    state.picking = false;
+    state.pickSel = null;
+    state.rtab = 'raccoon';
     setMode('raccoon');
     renderMarkers();
     $('#panelBody').scrollTop = 0;
