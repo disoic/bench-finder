@@ -536,6 +536,31 @@ button { font: inherit; color: inherit; cursor: pointer; }
 }
 .toggle[aria-pressed="true"] { background: var(--bench); border-color: var(--bench); color: var(--paper); }
 
+/* Sunset soon */
+.sunset-banner {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 0 16px 10px;
+  padding: 9px 10px 9px 12px;
+  border-radius: 12px;
+  background: linear-gradient(90deg, #FBE3C0, #F6CDBF);
+  color: #5A3A22;
+  font-size: 14px;
+}
+.sunset-banner .sun { font-size: 18px; color: #D9822B; }
+.sunset-text { flex: 1; }
+.sunset-go { border: 0; border-radius: 999px; padding: 7px 12px; background: #5A3A22; color: #FBE3C0; font-weight: 600; font-size: 13.5px; }
+.sunset-x { border: 0; background: none; color: #5A3A22; font-size: 20px; line-height: 1; padding: 2px 4px; }
+.sunset-line { color: #A8612A; }
+@media (prefers-color-scheme: dark) {
+  .sunset-banner { background: linear-gradient(90deg, #4A3420, #4A2A26); color: #F6D8B8; }
+  .sunset-go { background: #F6D8B8; color: #3A2616; }
+  .sunset-x { color: #F6D8B8; }
+  .sunset-line { color: #E3A06A; }
+}
+
 /* Wide screens: sidebar on the left, map fills the rest */
 @media (min-width: 900px) {
   .app { display: grid; grid-template-columns: 440px 1fr; grid-template-rows: auto 1fr; }
@@ -558,6 +583,7 @@ button { font: inherit; color: inherit; cursor: pointer; }
   .panel-bar { padding: 12px 20px 8px; }
   #panelToggle { display: none; }
   .filters { flex-wrap: wrap; overflow: visible; padding: 0 20px 12px; }
+  .sunset-banner { margin: 0 20px 10px; }
   .panel[data-mode="peek"] .panel-body { display: block; }
   .spot-head { padding: 16px 20px; }
   .detail { padding: 8px 20px 24px; }
@@ -588,6 +614,7 @@ button { font: inherit; color: inherit; cursor: pointer; }
       <p id="status" class="status" aria-live="polite"></p>
       <button id="panelToggle" class="link-btn" type="button">Show list</button>
     </div>
+    <div id="sunsetBanner" class="sunset-banner" role="status" hidden></div>
     <div class="filters" role="group" aria-label="Filters">
       <button class="chip type" type="button" data-type="bench" aria-pressed="true" style="--c: var(--bench)"><span class="dot" aria-hidden="true"></span>Benches <span class="count"></span></button>
       <button class="chip type" type="button" data-type="table" aria-pressed="true" style="--c: var(--table)"><span class="dot" aria-hidden="true"></span>Picnic tables <span class="count"></span></button>
@@ -595,6 +622,7 @@ button { font: inherit; color: inherit; cursor: pointer; }
       <span class="sep" aria-hidden="true"></span>
       <button class="chip need" type="button" data-need="liked" aria-pressed="false">Lovely</button>
       <button class="chip need" type="button" data-need="nice" aria-pressed="false">Nice</button>
+      <button class="chip need" type="button" data-need="sunset" aria-pressed="false">Sunset</button>
       <button class="chip need" type="button" data-need="visited" aria-pressed="false">Visited</button>
       <button class="chip need" type="button" data-need="water" aria-pressed="false">By water</button>
       <button class="chip need" type="button" data-need="green" aria-pressed="false">Park or woods</button>
@@ -620,6 +648,9 @@ const RULES = {
   pond: 40,           // "by a pond" / "by the water"
   forestEdge: 20,     // "at the forest edge"
   view: 50,           // "with a view" (mapped viewpoint)
+  landmark: 60,       // "near Grossmünster" (named landmark)
+  sunsetFrom: 225,    // nearest lake or river lies between these compass directions,
+  sunsetTo: 315,      // so looking at the water means looking at the sunset
   shadeRadius: 12,    // trees counted within this radius...
   shadeTrees: 2,      // ...need at least this many for "likely shaded"
   shelter: 6,         // "roofed" if a shelter is this close
@@ -639,6 +670,7 @@ const FETCH_RADIUS = 5000;    // data is loaded and saved on the phone this far 
 const TILE_LAT = 0.03;        // data is fetched in squares of about 3.3 km...
 const TILE_LON = 0.045;       // ...so moving around reuses what's already saved
 const TILE_MAX_AGE_DAYS = 14; // saved squares older than this are refreshed in the background
+const TILE_VERSION = 2;       // bump when the query changes, so saved squares are refreshed
 const MEASURE_LIMIT = 250;    // line and area distances are measured up to this
 
 const MATERIAL = { wood: 'wooden', metal: 'metal', steel: 'metal', stone: 'stone', granite: 'stone', concrete: 'concrete', plastic: 'plastic' };
@@ -695,6 +727,10 @@ make section name="pois";out;
   nwr["amenity"="bicycle_parking"];
   nwr["tourism"="viewpoint"];
   nwr["amenity"="shelter"];
+  nwr["historic"~"^(castle|monument|ruins|city_gate|fort|tower|manor|church)$"]["name"];
+  nwr["amenity"="place_of_worship"]["name"];
+  nwr["tourism"~"^(attraction|museum|artwork)$"]["name"];
+  nwr["amenity"="fountain"]["name"];
   node["highway"="bus_stop"];
   node["railway"="tram_stop"];
   node["public_transport"="platform"];
@@ -746,8 +782,9 @@ function slimTile(json, box) {
   const s = splitSections(json);
   const r6 = v => Math.round(v * 1e6) / 1e6;
   const pts = g => g.map(p => (p && p.lat != null ? { lat: r6(p.lat), lon: r6(p.lon) } : null));
-  const pt = el => {
+  const pt = (el, keepName) => {
     const o = { type: el.type, id: el.id, tags: slimTags(el.tags || {}) };
+    if (keepName && el.tags && el.tags.name) o.tags.name = el.tags.name;
     if (el.lat != null) { o.lat = r6(el.lat); o.lon = r6(el.lon); } else if (el.center) o.center = { lat: r6(el.center.lat), lon: r6(el.center.lon) };
     return o;
   };
@@ -765,7 +802,7 @@ function slimTile(json, box) {
   };
   const clip = expandBox(box, 120);
   return {
-    spots: s.spots.map(pt), pois: s.pois.map(pt), trees: flat(s.trees), bins: flat(s.bins),
+    spots: s.spots.map(el => pt(el)), pois: s.pois.map(el => pt(el, true)), trees: flat(s.trees), bins: flat(s.bins),
     lines: s.lines.map(el => shape(el, clip)), areas: s.areas.map(el => shape(el, null)),
   };
 }
@@ -916,6 +953,25 @@ function nearestLine(list, px, py, limit = MEASURE_LIMIT) {
   }
   return best <= limit ? best : Infinity;
 }
+// Like nearestLine, but also returns the nearest point, so we know which way it lies.
+function nearestLinePoint(list, px, py, limit = MEASURE_LIMIT) {
+  let best = Infinity, bx = 0, by = 0;
+  for (const f of list) {
+    if (boxDist(f, px, py) > Math.min(best, limit)) continue;
+    const s = f.segs;
+    for (let i = 0; i < s.length; i += 4) {
+      const x1 = s[i], y1 = s[i + 1], dx = s[i + 2] - x1, dy = s[i + 3] - y1, L = dx * dx + dy * dy;
+      let t = L ? ((px - x1) * dx + (py - y1) * dy) / L : 0;
+      t = t < 0 ? 0 : t > 1 ? 1 : t;
+      const qx = x1 + t * dx, qy = y1 + t * dy, d = Math.hypot(px - qx, py - qy);
+      if (d < best) { best = d; bx = qx; by = qy; }
+    }
+  }
+  return best <= limit ? { d: best, x: bx, y: by } : null;
+}
+// Compass direction from one point to another: 0 north, 90 east, 180 south, 270 west.
+const bearingTo = (px, py, qx, qy) => (Math.atan2(qx - px, qy - py) * 180 / Math.PI + 360) % 360;
+
 // Even-odd ray casting over all segments, so multipolygons with holes work too.
 function inside(f, px, py) {
   if (px < f.minx || px > f.maxx || py < f.miny || py > f.maxy) return false;
@@ -1001,7 +1057,7 @@ function analyse(json, center, R = SEARCH_RADIUS) {
 function analyseSections(sec, center, R = SEARCH_RADIUS, clipHalf = null) {
   const proj = makeProj(center);
 
-  const P = { drink: [], food: [], bike: [], view: [], shelter: [], stop: [], toilet: [] };
+  const P = { drink: [], food: [], bike: [], view: [], shelter: [], stop: [], toilet: [], landmark: [] };
   const addPt = (list, el, extra) => {
     const c = coordOf(el);
     if (!c) return;
@@ -1017,6 +1073,8 @@ function analyseSections(sec, center, R = SEARCH_RADIUS, clipHalf = null) {
     if (t.amenity === 'bicycle_parking') addPt(P.bike, el);
     if (t.tourism === 'viewpoint') addPt(P.view, el);
     if (t.amenity === 'shelter') addPt(P.shelter, el);
+    if (t.name && (t.historic || t.amenity === 'place_of_worship' || /^(attraction|museum|artwork)$/.test(t.tourism || '')
+      || (t.amenity === 'fountain' && t.drinking_water !== 'yes'))) addPt(P.landmark, el, { label: t.name });
     if (t.highway === 'bus_stop' || t.railway === 'tram_stop' || t.public_transport === 'platform') addPt(P.stop, el, { label: stopLabel(t) });
   }
   for (const el of sec.spots) {
@@ -1144,6 +1202,9 @@ function combineMeasures(list) {
     else if (typeof vals[0] === 'boolean') m[k] = vals.some(Boolean);
   }
   m.stopLabel = list.reduce((a, b) => (b.stop < a.stop ? b : a)).stopLabel;
+  const wet = list.reduce((a, b) => (Math.min(b.lake, b.river) < Math.min(a.lake, a.river) ? b : a));
+  m.waterDir = wet.waterDir;
+  m.landmarkName = list.reduce((a, b) => (b.landmark < a.landmark ? b : a)).landmarkName;
   m.foodLabel = list.reduce((a, b) => (b.food < a.food ? b : a)).foodLabel;
   return m;
 }
@@ -1167,6 +1228,10 @@ function measure(x, y, key, D) {
   const m = {};
   m.lake = line(D.Lf.lake);
   m.river = line(D.Lf.river);
+  // Which way the nearest lake or river lies, for "sunset over the water".
+  const wl = nearestLinePoint(D.Lf.lake, x, y), wr = nearestLinePoint(D.Lf.river, x, y);
+  const w = wl && (!wr || wl.d <= wr.d) ? wl : wr;
+  m.waterDir = w ? Math.round(bearingTo(x, y, w.x, w.y)) : -1;
   m.stream = line(D.Lf.stream);
   m.promenade = line(D.Lf.promenade);
   m.pond = line(D.Lf.pond);
@@ -1177,6 +1242,9 @@ function measure(x, y, key, D) {
   m.inForest = D.A.forest.some(f => inside(f, x, y));
   m.forestEdge = line(D.A.forest);
   m.view = near(D.P.view).d;
+  const lm = near(D.P.landmark);
+  m.landmark = lm.d;
+  m.landmarkName = lm.item ? lm.item.label : '';
   m.trees = gridScan(D.trees, x, y, RULES.shadeRadius).count;
   m.treeRow = line(D.Lf.treerow);
   m.shelter = near(D.P.shelter).d;
@@ -1254,7 +1322,9 @@ function describe(s) {
     else if (m.pond <= R.pond) tail.push('by a pond');
     else if (m.water <= R.pond) tail.push('by the water');
   }
+  if (m.landmark <= R.landmark && m.landmarkName) tail.push(`near ${m.landmarkName}`);
   if (m.view <= R.view) tail.push('with a view');
+  if (sunsetWater(m)) tail.push('with sunsets over the water');
   const sentence = cap(head + (tail.length ? ' ' + tail.join(', ') : '')) + '.';
 
   const c = [];
@@ -1297,6 +1367,8 @@ function estimateOf(s) {
   if (m.inPark || m.inGarden) x += 0.6;
   if (m.inForest || m.forestEdge <= R.forestEdge) x += 0.6;
   if (m.view <= R.view) x += 0.8;
+  if (sunsetWater(m)) x += 0.3;
+  if (m.landmark <= R.landmark && m.landmarkName) x += 0.3;
   if (m.promenade <= R.promenade) x += 0.3;
   if (m.trees >= R.shadeTrees || m.treeRow <= R.shadeRadius) x += 0.2;
   if (t.backrest === 'yes' || t.backrest === 'some') x += 0.2;
@@ -1308,6 +1380,33 @@ function estimateOf(s) {
   return Math.max(1, Math.min(5, Math.round(x * 10) / 10));
 }
 
+// Sunset time for a place and day, calculated on the phone (the standard solar formulas, as in SunCalc).
+// Returns null where the sun doesn't set that day.
+function sunsetAt(date, lat, lon) {
+  const rad = Math.PI / 180, dayMs = 86400000, J1970 = 2440588, J2000 = 2451545, J0 = 0.0009;
+  const e = rad * 23.4397;
+  const d = date.valueOf() / dayMs - 0.5 + J1970 - J2000;
+  const lw = rad * -lon, phi = rad * lat;
+  const n = Math.round(d - J0 - lw / (2 * Math.PI));
+  const ds = J0 + lw / (2 * Math.PI) + n;
+  const M = rad * (357.5291 + 0.98560028 * ds);
+  const C = rad * (1.9148 * Math.sin(M) + 0.02 * Math.sin(2 * M) + 0.0003 * Math.sin(3 * M));
+  const L = M + C + rad * 102.9372 + Math.PI;
+  const dec = Math.asin(Math.sin(e) * Math.sin(L));
+  const cosW = (Math.sin(-0.833 * rad) - Math.sin(phi) * Math.sin(dec)) / (Math.cos(phi) * Math.cos(dec));
+  if (cosW < -1 || cosW > 1) return null;
+  const w = Math.acos(cosW);
+  const a = J0 + (w + lw) / (2 * Math.PI) + n;
+  const Jset = J2000 + a + 0.0053 * Math.sin(M) - 0.0069 * Math.sin(2 * L);
+  return new Date((Jset + 0.5 - J1970) * dayMs);
+}
+
+// The nearest lake or river lies to the west, so looking at the water means looking at the sunset.
+function sunsetWater(m) {
+  const R = RULES;
+  return (m.lake <= R.lake || m.river <= R.river) && m.waterDir >= R.sunsetFrom && m.waterDir <= R.sunsetTo;
+}
+
 // Yes/no features used by the filters.
 function flagsOf(m) {
   const R = RULES;
@@ -1316,6 +1415,10 @@ function flagsOf(m) {
     green: m.inPark || m.inGarden || m.inForest || m.forestEdge <= R.forestEdge,
     quiet: !(m.road <= R.busyRoad || m.rail <= R.railway || m.tram <= R.tram || m.stop <= R.stop),
   };
+}
+
+function compass(deg) {
+  return ['north', 'northeast', 'east', 'southeast', 'south', 'southwest', 'west', 'northwest'][Math.round(deg / 45) % 8];
 }
 
 function fmtDist(d) {
@@ -1340,6 +1443,8 @@ function measuredRows(s) {
     ['Forest edge', d(m.forestEdge)],
     ['Named footpath', d(m.promenade)],
     ['Viewpoint', d(m.view)],
+    ['Landmark', m.landmarkName && isFinite(m.landmark) ? `${m.landmarkName}, ${d(m.landmark)}` : d(m.landmark)],
+    ['Water lies to the', m.waterDir >= 0 ? compass(m.waterDir) + ` (${m.waterDir}°)` : 'no lake or river nearby'],
     [`Trees within ${RULES.shadeRadius} m`, String(m.trees)],
     ['Tree row', d(m.treeRow)],
     ['Shelter', d(m.shelter)],
@@ -1965,7 +2070,8 @@ function stampSVG(stamp, uid) {
     add: { kind: 'bench', backrest: '', rating: '', msg: '', near: null, done: null, busy: false, step: 'form', fix: null, pin: null },
     error: '',
     types: { bench: true, table: true, toilet: true },
-    need: { liked: false, nice: false, water: false, green: false, quiet: false, visited: false },
+    need: { liked: false, nice: false, sunset: false, water: false, green: false, quiet: false, visited: false },
+    sunsetHidden: '',
   };
   let searchToken = 0;
 
@@ -2037,6 +2143,19 @@ function stampSVG(stamp, uid) {
   const scoreOf = id => { const r = myRating(id); return typeof r === 'number' ? r : null; };
   const toNum = v => (v === CLOSED ? CLOSED : Number(v));
   const myTags = id => (links.notes.get(id) || { tags: [] }).tags;
+  // A sunset spot: water to the west, or someone (for now: you) tagged it Sunset.
+  const isSunsetSpot = s => s.kind !== 'toilet' && (sunsetWater(s.m) || myTags(s.id).includes('sunset'));
+  const hhmm = d => d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+  // Today's sunset here, or tomorrow's once today's has passed.
+  function nextSunset() {
+    const c = state.user || state.center;
+    if (!c) return null;
+    const now = new Date();
+    const today = sunsetAt(now, c.lat, c.lon);
+    if (today && today > now) return { at: today, day: 'today' };
+    const tomorrow = sunsetAt(new Date(now.getTime() + 86400000), c.lat, c.lon);
+    return tomorrow ? { at: tomorrow, day: 'tomorrow' } : null;
+  }
   // For sorting by "best": your own stars where you've rated, otherwise the estimate from the surroundings.
   const bestScore = s => scoreOf(s.id) ?? s.estimate ?? 2.5;
   const promising = s => s.kind !== 'toilet' && myRating(s.id) == null && (s.estimate || 0) >= PROMISING_FROM;
@@ -2179,7 +2298,7 @@ function stampSVG(stamp, uid) {
   }
   let currentNeed = [];
   let queue = [], working = false, probeToken = 0;
-  const fresh = rec => Date.now() - rec.t < TILE_MAX_AGE_DAYS * 86400000;
+  const fresh = rec => rec.ver === TILE_VERSION && Date.now() - rec.t < TILE_MAX_AGE_DAYS * 86400000;
 
   function enqueue(ids, urgent) {
     const list = ids.filter(id => !(cache.has(id) && fresh(cache.get(id))));
@@ -2203,7 +2322,7 @@ function stampSVG(stamp, uid) {
       }
       try {
         const json = await overpass(buildTileQuery(tileBox(id)));
-        const rec = { t: Date.now(), data: slimTile(json, tileBox(id)) };
+        const rec = { t: Date.now(), ver: TILE_VERSION, data: slimTile(json, tileBox(id)) };
         idb.put(id, rec);
         failed.delete(id);
         remember(id, rec);
@@ -2449,6 +2568,7 @@ function stampSVG(stamp, uid) {
     const n = state.need;
     if (n.liked && !isLovely(scoreOf(s.id))) return false;
     if (n.nice && !isNice(scoreOf(s.id))) return false;
+    if (n.sunset && !isSunsetSpot(s)) return false;
     if (n.visited && !visited(s.id)) return false;
     if (n.water && !s.flags.water) return false;
     if (n.green && !s.flags.green) return false;
@@ -2545,13 +2665,32 @@ function stampSVG(stamp, uid) {
     if (state.pending) text += ' Still loading part of the area…';
     else if (state.failedN) text += ' Part of the area couldn’t load.';
     else if (state.place === 'Zurich centre') text += ' Tap Locate me to search around you.';
+    if (state.need.sunset) {
+      const ns = nextSunset();
+      if (ns) text += ` Sunset ${ns.day} at ${hhmm(ns.at)}.`;
+    }
     return text;
+  }
+
+  // "Sunset at 18:24. 3 sunset spots nearby." Shown in the hour and a half before sunset.
+  function renderSunsetBanner() {
+    const box = $('#sunsetBanner');
+    const ns = nextSunset();
+    const mins = ns && ns.day === 'today' ? (ns.at - Date.now()) / 60000 : Infinity;
+    const count = state.phase === 'ready' ? state.spots.filter(isSunsetSpot).length : 0;
+    if (!(mins <= 90 && count && !state.need.sunset && state.sunsetHidden !== dayKey(new Date()))) { box.hidden = true; return; }
+    box.hidden = false;
+    box.innerHTML = `<span class="sun" aria-hidden="true">☀</span>
+      <span class="sunset-text">Sunset at ${hhmm(ns.at)}. ${count} sunset ${count === 1 ? 'spot' : 'spots'} within ${km(SEARCH_RADIUS)}.</span>
+      <button type="button" class="sunset-go" data-sun="show">Show</button>
+      <button type="button" class="sunset-x" data-sun="hide" aria-label="Hide for today">×</button>`;
   }
 
   function renderPanel() {
     const panel = $('#panel');
     panel.dataset.mode = state.mode;
     $('#status').textContent = statusText();
+    renderSunsetBanner();
     const toggle = $('#panelToggle');
     toggle.textContent = state.mode === 'peek' ? 'Show list' : state.mode === 'list' ? 'Hide list' : 'Close';
     if (state.mode === 'raccoon' || state.mode === 'add') {
@@ -2989,6 +3128,7 @@ function stampSVG(stamp, uid) {
       ${summaryHTML(s.text, true)}
       ${promising(s) ? '<p class="promise-line">Looks promising from its surroundings. Nobody has rated it yet, so be the first.</p>' : ''}
       ${myTags(s.id).length ? `<p class="comfort">You noted: ${esc(myTags(s.id).map(tagLabel).join(', ').toLowerCase())}.</p>` : ''}
+      ${isSunsetSpot(s) && nextSunset() ? `<p class="comfort sunset-line">Sunset ${nextSunset().day} at ${hhmm(nextSunset().at)}.</p>` : ''}
       ${checkinHTML(s)}
       ${rerateHTML(s)}
       ${tagsHTML(s)}
@@ -3615,6 +3755,22 @@ function stampSVG(stamp, uid) {
       $('#panelBody').scrollTop = 0;
     }
   });
+
+  $('#sunsetBanner').addEventListener('click', e => {
+    const b = e.target.closest('[data-sun]');
+    if (!b) return;
+    if (b.dataset.sun === 'show') {
+      state.need.sunset = true;
+      state.shown = PAGE;
+      if (state.mode === 'peek' && !wide.matches) state.mode = 'list';
+      render();
+    } else {
+      state.sunsetHidden = dayKey(new Date());
+      renderSunsetBanner();
+    }
+  });
+  // Check every few minutes whether the sunset banner should appear.
+  setInterval(() => { if (state.phase === 'ready') renderSunsetBanner(); }, 5 * 60000);
 
   $('#panelToggle').addEventListener('click', () => {
     state.reveal = null;
