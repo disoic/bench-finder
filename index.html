@@ -3,9 +3,9 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>Pause: benches, picnic tables and toilets</title>
+<title>Sitwell: find a good place to sit</title>
 <meta name="theme-color" content="#F6F4EF">
-<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🪑</text></svg>">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect width='100' height='100' rx='22' fill='%232F5E43'/><rect x='18' y='34' width='64' height='9' rx='3' fill='%23F6F4EF'/><rect x='18' y='48' width='64' height='9' rx='3' fill='%23F6F4EF'/><rect x='14' y='61' width='72' height='8' rx='3' fill='%23F6F4EF'/><rect x='22' y='69' width='7' height='17' rx='2' fill='%23F6F4EF'/><rect x='71' y='69' width='7' height='17' rx='2' fill='%23F6F4EF'/></svg>">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Serif:wght@400;500&display=swap">
@@ -433,6 +433,109 @@ button { font: inherit; color: inherit; cursor: pointer; }
 .tag.clean { color: var(--bench); font-weight: 600; }
 .tag.avoid, .tag.closed { color: var(--warn); }
 
+/* Star ratings */
+.stars { display: flex; gap: 4px; margin-top: 10px; }
+.star {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 3px;
+  padding: 8px 2px 9px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--surface);
+}
+.star .glyph { font-size: 28px; line-height: 1; color: var(--line); }
+.star.on .glyph { color: #E0A526; }
+.star .word { font-size: 11px; line-height: 1.2; text-align: center; color: var(--ink-2); }
+.star[aria-pressed="true"] { border-color: #E0A526; box-shadow: inset 0 0 0 1.5px #E0A526; }
+.stars.small .star { padding: 6px 2px 7px; background: var(--paper); }
+.stars.small .glyph { font-size: 22px; }
+.closedbtn {
+  width: 100%;
+  margin-top: 6px;
+  padding: 10px;
+  border-radius: 10px;
+  border: 1px solid var(--line);
+  background: var(--paper);
+  font-weight: 500;
+  font-size: 14px;
+}
+.closedbtn[aria-pressed="true"] { background: var(--ink); border-color: var(--ink); color: var(--paper); }
+.tag.nice { color: var(--bench); font-weight: 600; }
+.tag.low { color: var(--warn); }
+
+/* Sorting, promising spots, tags */
+.sorter { margin: 12px 16px; }
+.tag.promising { color: #A87A10; font-weight: 600; }
+.promise-line { margin: 8px 0 0; font-size: 14px; color: #8A6A1E; }
+@media (prefers-color-scheme: dark) { .tag.promising, .promise-line { color: var(--gold); } }
+.tagchips { display: flex; flex-wrap: wrap; gap: 6px; }
+
+/* The raccoon's voice */
+.bubble-line { display: flex; align-items: flex-start; gap: 10px; margin: 12px 0 4px; }
+.bubble-face { flex: none; width: 44px; height: 44px; border-radius: 50%; background: var(--paper); border: 1px solid var(--line); overflow: hidden; }
+.bubble-face svg { display: block; width: 100%; height: 100%; }
+.speech {
+  margin: 0;
+  padding: 10px 12px;
+  border-radius: 4px 14px 14px 14px;
+  background: var(--paper);
+  border: 1px solid var(--line);
+  font-family: var(--serif);
+  font-size: 15.5px;
+  line-height: 1.4;
+  color: var(--ink);
+}
+.checkin .speech { background: var(--surface); }
+
+/* Neighbourhood progress in the passport */
+.progress { margin: 0 0 10px; }
+.progress-row { display: flex; flex-direction: column; gap: 4px; margin: 0 0 8px; font-size: 13.5px; color: var(--ink-2); }
+.bar { display: block; height: 6px; border-radius: 3px; background: var(--line); overflow: hidden; }
+.bar span { display: block; height: 100%; background: var(--bench); }
+.actions.reset { gap: 8px; }
+
+/* First-open intro */
+.intro { position: fixed; inset: 0; z-index: 2000; display: grid; place-items: center; padding: 20px; background: rgba(20, 18, 15, .45); }
+.intro-card {
+  width: min(420px, 100%);
+  padding: 22px 20px 18px;
+  border-radius: 20px;
+  background: var(--surface);
+  box-shadow: 0 10px 40px rgba(0, 0, 0, .25);
+  text-align: center;
+}
+.intro-art svg { width: 100%; max-width: 250px; height: auto; }
+.intro-title { margin: 8px 0 6px; font-family: var(--serif); font-weight: 500; font-size: 24px; }
+.intro-text { margin: 0; color: var(--ink-2); font-size: 15px; }
+.intro-dots { display: flex; justify-content: center; gap: 6px; margin: 16px 0 10px; }
+.intro-dots span { width: 7px; height: 7px; border-radius: 50%; background: var(--line); }
+.intro-dots span.on { background: var(--ink); }
+.intro-actions { display: flex; align-items: center; gap: 12px; }
+.intro-actions .ck-btn { flex: 1; margin-top: 0; }
+
+/* Calm mode, the companion offer and settings */
+.reveal .snack.calm { color: #E0A526; font-size: 34px; }
+.offer { margin-top: 14px; padding: 14px; border-radius: 12px; background: var(--surface); border: 1px dashed var(--ink-3); }
+.offer-title { margin: 0 0 4px; font-family: var(--serif); font-size: 18px; }
+.offer .actions { margin-top: 12px; }
+.settings { margin-top: 26px; padding-top: 4px; border-top: 1px solid var(--line); }
+.setting-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; font-size: 14.5px; }
+.toggle {
+  min-width: 64px;
+  padding: 8px 14px;
+  border-radius: 999px;
+  border: 1px solid var(--line);
+  background: var(--paper);
+  font-weight: 600;
+  font-size: 14px;
+  color: var(--ink-2);
+}
+.toggle[aria-pressed="true"] { background: var(--bench); border-color: var(--bench); color: var(--paper); }
+
 /* Wide screens: sidebar on the left, map fills the rest */
 @media (min-width: 900px) {
   .app { display: grid; grid-template-columns: 440px 1fr; grid-template-rows: auto 1fr; }
@@ -458,6 +561,7 @@ button { font: inherit; color: inherit; cursor: pointer; }
   .panel[data-mode="peek"] .panel-body { display: block; }
   .spot-head { padding: 16px 20px; }
   .detail { padding: 8px 20px 24px; }
+  .sorter { margin: 12px 20px; }
   .message { padding: 18px 20px; }
 }
 </style>
@@ -465,8 +569,8 @@ button { font: inherit; color: inherit; cursor: pointer; }
 <body>
 <div class="app">
   <header class="top">
-    <h1>Pause</h1>
-    <p class="tagline">Benches, picnic tables and toilets, described by what's around them.</p>
+    <h1>Sitwell</h1>
+    <p class="tagline">Find a good place to sit: benches, picnic tables and toilets, described by what's around them.</p>
   </header>
 
   <div class="mapwrap">
@@ -474,7 +578,7 @@ button { font: inherit; color: inherit; cursor: pointer; }
     <div class="mapbtns">
       <button id="locate" class="pill" type="button">Locate me</button>
       <button id="addBtn" class="pill" type="button">Add a bench</button>
-      <button id="raccoonBtn" class="pill" type="button" aria-label="Your raccoon and its snacks"><span aria-hidden="true">🦝</span> <span id="snackCount">0</span></button>
+      <button id="raccoonBtn" class="pill" type="button" aria-label="Your rated spots and passport">My spots</button>
       <button id="searchHere" class="pill strong" type="button" hidden>Search this area</button>
     </div>
   </div>
@@ -490,6 +594,7 @@ button { font: inherit; color: inherit; cursor: pointer; }
       <button class="chip type" type="button" data-type="toilet" aria-pressed="true" style="--c: var(--toilet)"><span class="dot" aria-hidden="true"></span>Toilets <span class="count"></span></button>
       <span class="sep" aria-hidden="true"></span>
       <button class="chip need" type="button" data-need="liked" aria-pressed="false">Lovely</button>
+      <button class="chip need" type="button" data-need="nice" aria-pressed="false">Nice</button>
       <button class="chip need" type="button" data-need="visited" aria-pressed="false">Visited</button>
       <button class="chip need" type="button" data-need="water" aria-pressed="false">By water</button>
       <button class="chip need" type="button" data-need="green" aria-pressed="false">Park or woods</button>
@@ -498,6 +603,7 @@ button { font: inherit; color: inherit; cursor: pointer; }
     <div id="panelBody" class="panel-body"></div>
   </aside>
 </div>
+<div id="intro" class="intro" hidden></div>
 
 <script id="core">
 /* ============================================================
@@ -1021,6 +1127,7 @@ function analyseSections(sec, center, R = SEARCH_RADIUS, clipHalf = null) {
     spot.m = combineMeasures(members.map(s => measure(s.x, s.y, s.id, D)));
     spot.text = describe(spot);
     spot.flags = flagsOf(spot.m);
+    spot.estimate = estimateOf(spot);
     spots.push(spot);
   });
   spots.sort((a, b) => a.dist - b.dist);
@@ -1178,6 +1285,29 @@ function describe(s) {
   };
 }
 
+// A first guess at how nice a spot is (1 to 5), from its surroundings alone.
+// Used before anyone has rated it, so a new town doesn't look empty.
+const PROMISING_FROM = 4.0;
+function estimateOf(s) {
+  if (s.kind === 'toilet') return null;
+  const m = s.m, R = RULES, t = s.tags || {};
+  let x = 2.6;
+  if (m.lake <= R.lake || m.river <= R.river) x += 1.2;
+  else if (m.stream <= R.stream || m.pond <= R.pond || m.water <= R.pond) x += 0.8;
+  if (m.inPark || m.inGarden) x += 0.6;
+  if (m.inForest || m.forestEdge <= R.forestEdge) x += 0.6;
+  if (m.view <= R.view) x += 0.8;
+  if (m.promenade <= R.promenade) x += 0.3;
+  if (m.trees >= R.shadeTrees || m.treeRow <= R.shadeRadius) x += 0.2;
+  if (t.backrest === 'yes' || t.backrest === 'some') x += 0.2;
+  if (m.inCemetery) x -= 0.6;
+  if (m.road <= R.busyRoad) x -= 1.0;
+  if (m.rail <= R.railway) x -= 0.6;
+  if (m.tram <= R.tram) x -= 0.3;
+  if (m.stop <= R.stop) x -= 0.7;
+  return Math.max(1, Math.min(5, Math.round(x * 10) / 10));
+}
+
 // Yes/no features used by the filters.
 function flagsOf(m) {
   const R = RULES;
@@ -1305,31 +1435,87 @@ const RACCOONS = [
 ];
 const raccoonById = id => RACCOONS.find(r => r.id === id) || RACCOONS[0];
 
-// Every check-in is a rating. Only your latest rating of a spot counts.
-const RATINGS = [['lovely', 'Lovely'], ['okay', 'Okay'], ['notgreat', 'Not great']];
-// Toilets get their own words, plus "closed", since whether it's open often matters most.
-const TOILET_RATINGS = [['clean', 'Clean'], ['okay', 'Okay'], ['avoid', 'Avoid'], ['closed', 'Closed or locked']];
-const ratingsFor = kind => (kind === 'toilet' ? TOILET_RATINGS : RATINGS);
-const ratingLabel = r => (RATINGS.concat(TOILET_RATINGS).find(x => x[0] === r) || [, ''])[1];
-const POSITIVE = new Set(['lovely', 'clean']);
-const NEGATIVE = new Set(['notgreat', 'avoid', 'closed']);
-// "Still lovely?", "Still clean?", "Still one to avoid?"
+// Every check-in is a rating from 1 to 5 stars. Only your latest rating of a spot counts.
+// Each star has a word, so everyone means the same thing by a 3.
+const STAR_WORDS = {
+  seat: ['Not worth it', 'Meh', 'Okay', 'Nice', 'Lovely'],
+  toilet: ['Avoid', 'Grim', 'Okay', 'Clean', 'Spotless'],
+};
+const starWords = kind => (kind === 'toilet' ? STAR_WORDS.toilet : STAR_WORDS.seat);
+// Toilets can also be marked closed, which isn't a grade.
+const CLOSED = 'closed';
+// Score bands used for the map and filters (on averages later, on your own stars for now).
+const LOVELY_FROM = 4.5, NICE_FROM = 3.5;
+const isLovely = sc => typeof sc === 'number' && sc >= LOVELY_FROM;
+const isNice = sc => typeof sc === 'number' && sc >= NICE_FROM && sc < LOVELY_FROM;
+const isLow = r => r === CLOSED || (typeof r === 'number' && r <= 2);
+// Ratings saved by earlier versions used words; turn them into stars.
+const OLD_RATINGS = { lovely: 5, okay: 3, notgreat: 2, clean: 4, avoid: 1 };
+function normRating(r) {
+  if (r === CLOSED || typeof r === 'number') return r;
+  if (typeof r === 'string' && /^[1-5]$/.test(r)) return Number(r);
+  return OLD_RATINGS[r] || null;
+}
+function ratingWord(r, kind) {
+  r = normRating(r);
+  if (r === CLOSED) return 'Closed or locked';
+  return r ? starWords(kind)[r - 1] : '';
+}
+const starText = n => `${n} ${n === 1 ? 'star' : 'stars'}`;
+// "Still 4 stars?" or "Still closed?"
 function stillQuestion(r) {
-  return { avoid: 'Still one to avoid?', closed: 'Still closed?' }[r] || `Still ${ratingLabel(r).toLowerCase()}?`;
+  r = normRating(r);
+  return r === CLOSED ? 'Still closed?' : `Still ${starText(r)}?`;
 }
 
-// Trinkets found as rare drops, worn in three slots.
-const TRINKETS = [
-  { id: 'strawhat', slot: 'head', name: 'straw hat' },
-  { id: 'cap', slot: 'head', name: 'cap' },
-  { id: 'flowers', slot: 'head', name: 'flower crown' },
-  { id: 'sunglasses', slot: 'face', name: 'sunglasses' },
-  { id: 'glasses', slot: 'face', name: 'round glasses' },
-  { id: 'scarf', slot: 'neck', name: 'scarf' },
-  { id: 'bandana', slot: 'neck', name: 'bandana' },
-  { id: 'bowtie', slot: 'neck', name: 'bow tie' },
-];
-const SLOTS = [['head', 'Head'], ['face', 'Face'], ['neck', 'Neck']];
+// What makes a spot nice, beyond the stars. One optional tap after rating.
+const SPOT_TAGS = [['view', 'View'], ['quiet', 'Quiet'], ['sunset', 'Sunset'], ['fortwo', 'For two'], ['shade', 'Shade'], ['sun', 'Sunny'], ['picnic', 'Picnics'], ['kids', 'Kids']];
+const tagLabel = id => (SPOT_TAGS.find(t => t[0] === id) || [, id])[1];
+
+// Each raccoon's voice: short lines for its moods and for what happens at a spot.
+const VOICES = {
+  pip: {
+    hungry: 'Crumbs? Any crumbs? I’ll take any crumbs.', happy: 'Best day ever. Again.',
+    lovely: 'Five stars! I was here first, remember that.', low: 'Not every bench can be a winner. The crumbs were fine though.',
+    golden: 'Golden! I always knew I was lucky.', trinket: 'Ooh, shiny. Mine now.' },
+  rusty: {
+    hungry: 'I can smell a croissant three neighbourhoods away. Let’s go.', happy: 'Full of snacks and dreaming of more.',
+    lovely: 'This spot deserves a croissant. Possibly two.', low: 'Even the pigeons skip this one.',
+    golden: 'A golden snack! My nose never lies.', trinket: 'Fancy. Does it go with crumbs?' },
+  midnight: {
+    hungry: 'I’m not hungry. I’m strategically empty.', happy: 'Fine. That was acceptable.',
+    lovely: 'Hm. I’d sit here. Don’t tell anyone.', low: 'I’ve seen better benches in my sleep.',
+    golden: 'Golden. Quietly impressive.', trinket: 'Nobody saw me take it.' },
+  biscuit: {
+    hungry: 'I’d trade my tail for a cookie right now.', happy: 'Cozy, crumby and content.',
+    lovely: 'Perfect for a picnic. And a nap. And a cookie.', low: 'This one needs a cookie to cheer it up.',
+    golden: 'A golden treat! Today is a sweet day.', trinket: 'Is it edible? No? Still lovely.' },
+  fluff: {
+    hungry: 'My fur is fluffy but my belly is flat.', happy: 'Maximum fluff, maximum snacks.',
+    lovely: 'This view makes my fur stand on end. In a good way.', low: 'My fur is unimpressed.',
+    golden: 'Golden! I’m fluffing with joy.', trinket: 'Something to wear in all this fur!' },
+  hazel: {
+    hungry: 'I know a shortcut to a snack. Follow me.', happy: 'Another corner of the map, explored.',
+    lovely: 'Worth every shortcut it took to get here.', low: 'Noted. We’ll take a different route next time.',
+    golden: 'A golden find, right where the map got interesting.', trinket: 'A souvenir from the road!' },
+  pepper: {
+    hungry: 'Snacks first, shiny things second. Okay, both.', happy: 'Full belly, full collection.',
+    lovely: 'This spot sparkles. I approve.', low: 'Not a single thing glitters here.',
+    golden: 'It glitters and it’s edible. The best kind of treasure.', trinket: 'Into the collection it goes!' },
+  sage: {
+    hungry: 'A wise raccoon knows when it’s snack time. It’s now.', happy: 'Contentment is a good bench and a full belly.',
+    lovely: 'Now this is a view worth sitting for.', low: 'In all my years, I have rarely sat on worse.',
+    golden: 'Golden. Patience is always rewarded.', trinket: 'A fine addition for a raccoon of my age.' },
+  coco: {
+    hungry: 'My grin is getting smaller. Feed me?', happy: 'Too full to move. Perfect.',
+    lovely: 'Big grin. Big nap. Big five stars.', low: 'Even I can’t grin about this one.',
+    golden: 'Golden! Biggest grin yet.', trinket: 'Ooh, does this make me look dapper?' },
+  nimbus: {
+    hungry: 'Tiny raccoon, tiny belly, big hunger.', happy: 'Floating on a cloud of crumbs.',
+    lovely: 'So soft, so sunny, so lovely.', low: 'This one made my cloud go grey.',
+    golden: 'A golden crumb! I’m glowing.', trinket: 'Something sparkly for a small raccoon!' },
+};
+const voiceOf = (id, situation) => ((VOICES[id] || VOICES.pip)[situation]) || '';
 
 /* ---------- rules ---------- */
 
@@ -1396,18 +1582,22 @@ function rollToilet(spotId, now) {
 
 function deriveState(events) {
   const s = {
-    raccoon: null, name: '', total: 0, rares: 0, lastFed: 0,
-    visits: [], ratings: [], newSpots: [], pins: [], adds: [], trinkets: [], worn: { head: null, face: null, neck: null },
+    raccoon: null, name: '', companion: null, total: 0, rares: 0, lastFed: 0,
+    visits: [], ratings: [], notes: [], newSpots: [], pins: [], adds: [], trinkets: [], worn: { head: null, face: null, neck: null },
   };
   const removed = new Set(events.filter(e => e.type === 'remove').map(e => e.id));
   for (const e of events) {
     if (e.type === 'profile') {
       if (e.raccoon) s.raccoon = e.raccoon;
       if (e.name != null) s.name = e.name;
+      // Older histories that chose a raccoon had the companion on.
+      if (e.raccoon && s.companion === null) s.companion = true;
+    } else if (e.type === 'companion') {
+      s.companion = !!e.on;
     } else if (e.type === 'checkin') {
       s.visits.push(e);
-      if (e.rating) s.ratings.push(e);
-      if (e.value && e.kind !== 'toilet') s.newSpots.push(e.t);
+      if (e.rating) s.ratings.push(Object.assign({}, e, { rating: normRating(e.rating) }));
+      if ((e.first || e.value) && e.kind !== 'toilet') s.newSpots.push(e.t);
       s.total += e.value || 0;
       if (e.rare) s.rares += 1;
       if (e.value) s.lastFed = Math.max(s.lastFed, e.t);
@@ -1418,17 +1608,19 @@ function deriveState(events) {
       s.pins.push(e);
       s.visits.push(e);
       s.newSpots.push(e.t);
-      if (e.rating) s.ratings.push(e);
+      if (e.rating) s.ratings.push(Object.assign({}, e, { rating: normRating(e.rating) }));
       s.total += e.value || 0;
       s.lastFed = Math.max(s.lastFed, e.t);
     } else if (e.type === 'legacy') {
       s.total += e.value || 0;
     } else if (e.type === 'rate') {
-      s.ratings.push(e);
+      s.ratings.push(Object.assign({}, e, { rating: normRating(e.rating) }));
     } else if (e.type === 'vote') {
       // Likes and dislikes from earlier versions become ratings.
-      const rating = e.v === 1 ? 'lovely' : e.v === -1 ? 'notgreat' : null;
+      const rating = e.v === 1 ? 5 : e.v === -1 ? 2 : null;
       if (rating) s.ratings.push(Object.assign({}, e, { rating }));
+    } else if (e.type === 'tags') {
+      s.notes.push(e);
     } else if (e.type === 'wear') {
       s.worn[e.slot] = e.item || null;
     }
@@ -1767,12 +1959,13 @@ function stampSVG(stamp, uid) {
     mode: 'peek',           // peek | list | detail | raccoon | add
     rtab: 'raccoon', picking: false, pickSel: null,
     rateTab: 'lovely', votedList: [], pendingOpen: null, user: null, rateFor: null,
+    sortBy: 'near', intro: 0,
     ckMsg: '', checking: false, reveal: null,
     pending: 0, failedN: 0,
     add: { kind: 'bench', backrest: '', rating: '', msg: '', near: null, done: null, busy: false, step: 'form', fix: null, pin: null },
     error: '',
     types: { bench: true, table: true, toilet: true },
-    need: { liked: false, water: false, green: false, quiet: false, visited: false },
+    need: { liked: false, nice: false, water: false, green: false, quiet: false, visited: false },
   };
   let searchToken = 0;
 
@@ -1782,7 +1975,7 @@ function stampSVG(stamp, uid) {
      so it can later be uploaded to the server exactly as it is. */
   let events = loadEvents();
   let me = deriveState(events);
-  let links = { visits: new Map(), ratings: new Map() };
+  let links = { visits: new Map(), ratings: new Map(), notes: new Map() };
 
   function loadEvents() {
     try {
@@ -1840,14 +2033,30 @@ function stampSVG(stamp, uid) {
   const today = () => dayKey(new Date());
   const visitsOf = id => links.visits.get(id) || [];
   const myRating = id => { const e = links.ratings.get(id); return e ? e.rating : null; };
+  // A spot's score: your own stars for now; the shared average once ratings are on the server.
+  const scoreOf = id => { const r = myRating(id); return typeof r === 'number' ? r : null; };
+  const toNum = v => (v === CLOSED ? CLOSED : Number(v));
+  const myTags = id => (links.notes.get(id) || { tags: [] }).tags;
+  // For sorting by "best": your own stars where you've rated, otherwise the estimate from the surroundings.
+  const bestScore = s => scoreOf(s.id) ?? s.estimate ?? 2.5;
+  const promising = s => s.kind !== 'toilet' && myRating(s.id) == null && (s.estimate || 0) >= PROMISING_FROM;
   const visited = id => visitsOf(id).length > 0;
   const lastVisit = id => visitsOf(id).reduce((a, e) => (!a || e.t > a.t ? e : a), null);
   const canRerate = id => visitsOf(id).some(e => Date.now() - e.t <= GAME.rateWindowHours * 3600000);
   const look = () => raccoonById(me.raccoon);
   const petName = () => me.name || (me.raccoon ? look().name : 'your raccoon');
 
+  // The raccoon is an optional companion; without it the app stays calm.
+  const companionOn = () => me.companion === true;
   function updateRaccoonButton() {
-    $('#snackCount').textContent = me.total;
+    const b = $('#raccoonBtn');
+    if (companionOn()) {
+      b.innerHTML = `<span aria-hidden="true">🦝</span> ${me.total}`;
+      b.setAttribute('aria-label', 'Your raccoon and your spots');
+    } else {
+      b.textContent = 'My spots';
+      b.setAttribute('aria-label', 'Your rated spots and passport');
+    }
   }
 
   function metres(lat1, lon1, lat2, lon2) {
@@ -2038,7 +2247,7 @@ function stampSVG(stamp, uid) {
     }
     if (!placesQueued) {
       placesQueued = true;
-      events.filter(e => (e.type === 'checkin' || e.type === 'add') && e.lat != null && !(e.place && e.place.v === 2)).slice(-15).forEach(queuePlace);
+      events.filter(e => (e.type === 'checkin' || e.type === 'add') && e.lat != null && !(e.place && e.place.v === 3)).slice(-15).forEach(queuePlace);
     }
     state.phase = 'ready';
     if (state.selected && !state.spots.some(s => s.id === state.selected)) {
@@ -2052,8 +2261,8 @@ function stampSVG(stamp, uid) {
   // so spots can be regrouped when the map changes without losing anything.
   let placesQueued = false;
   function linkEvents() {
-    const visits = new Map(), ratingsBy = new Map();
-    links = { visits, ratings: ratingsBy };
+    const visits = new Map(), ratingsBy = new Map(), notesBy = new Map();
+    links = { visits, ratings: ratingsBy, notes: notesBy };
     if (!state.spots.length || !state.center) return;
     const memberOf = new Map();
     for (const s of state.spots) for (const mb of s.members) memberOf.set(mb.id, s);
@@ -2092,6 +2301,12 @@ function stampSVG(stamp, uid) {
       const cur = ratingsBy.get(s.id);
       if (!cur || e.t >= cur.t) ratingsBy.set(s.id, e);
     }
+    for (const e of me.notes) {
+      const s = spotOf(e);
+      if (!s) continue;
+      const cur = notesBy.get(s.id);
+      if (!cur || e.t >= cur.t) notesBy.set(s.id, e);
+    }
     if (repaired) saveEvents();
   }
 
@@ -2112,7 +2327,7 @@ function stampSVG(stamp, uid) {
   const placeQueue = [];
   let placeBusy = false;
   function queuePlace(ev) {
-    if (ev && ev.lat != null && ev.kind !== 'toilet' && !(ev.place && ev.place.v === 2)) { placeQueue.push(ev); pumpPlaces(); }
+    if (ev && ev.lat != null && ev.kind !== 'toilet' && !(ev.place && ev.place.v === 3)) { placeQueue.push(ev); pumpPlaces(); }
   }
   // Saves the whole chain (country, town, district, neighbourhood). Which one a stamp shows
   // is decided when it's drawn, so the rule can change later without asking again.
@@ -2127,7 +2342,8 @@ function stampSVG(stamp, uid) {
     if (!town && !country) throw new Error('no place found');
     const cname = country ? (country.tags['name:en'] || country.tags.name) : 'Somewhere';
     return {
-      v: 2,
+      v: 3,
+      townArea: town ? town.id : null,
       country: cname,
       code: country ? (country.tags['ISO3166-1:alpha2'] || country.tags['ISO3166-1'] || '') : '',
       town: town ? town.tags.name : cname,
@@ -2140,10 +2356,11 @@ function stampSVG(stamp, uid) {
     placeBusy = true;
     while (placeQueue.length) {
       const ev = placeQueue.shift();
-      if (ev.place && ev.place.v === 2) continue;
+      if (ev.place && ev.place.v === 3) continue;
       try {
         ev.place = await lookupPlace(ev.lat, ev.lon);
         saveEvents();
+        countSubareas(ev.place);
         me = deriveState(events);
         linkEvents();
         placeResolved(ev);
@@ -2151,6 +2368,29 @@ function stampSVG(stamp, uid) {
     }
     placeBusy = false;
   }
+  // How many neighbourhoods (or districts) a town has, asked once per town and kept on the phone.
+  const SUBAREA_KEY = 'benchbandit.subareas.v1';
+  let subareas = {};
+  try { subareas = JSON.parse(localStorage.getItem(SUBAREA_KEY)) || {}; } catch (e) { subareas = {}; }
+  const subLevel = place => (placeParts(place).sub ? (placeParts(place).sub === place.neighbourhood ? 10 : 9) : null);
+  function subareaInfo(country, town) {
+    const hit = Object.values(subareas).find(x => x.country === country && x.town === town);
+    return hit || null;
+  }
+  async function countSubareas(place) {
+    const level = subLevel(place);
+    if (!level || !place.townArea) return;
+    const key = place.townArea + ':' + level;
+    if (subareas[key]) return;
+    try {
+      const json = await overpass(`[out:json][timeout:25];area(${place.townArea})->.t;rel(area.t)["boundary"="administrative"]["admin_level"="${level}"];out tags;`);
+      const names = new Set((json.elements || []).map(e => e.tags && e.tags.name).filter(Boolean));
+      subareas[key] = { country: place.country, town: place.town, level, count: names.size, t: Date.now() };
+      try { localStorage.setItem(SUBAREA_KEY, JSON.stringify(subareas)); } catch (e) { /* ignore */ }
+      if (state.mode === 'raccoon') renderPanel();
+    } catch (e) { /* try again another time */ }
+  }
+
   function placeResolved(ev) {
     const label = stampLabel(ev.place);
     const isNew = !me.visits.some(e => e !== ev && e.place && stampLabel(e.place) === label && e.t <= ev.t);
@@ -2207,14 +2447,19 @@ function stampSVG(stamp, uid) {
   function passes(s) {
     if (s.kind === 'toilet' ? !state.types.toilet : !((state.types.bench && s.hasBench) || (state.types.table && s.hasTable))) return false;
     const n = state.need;
-    if (n.liked && myRating(s.id) !== 'lovely') return false;
+    if (n.liked && !isLovely(scoreOf(s.id))) return false;
+    if (n.nice && !isNice(scoreOf(s.id))) return false;
     if (n.visited && !visited(s.id)) return false;
     if (n.water && !s.flags.water) return false;
     if (n.green && !s.flags.green) return false;
     if (n.quiet && !s.flags.quiet) return false;
     return true;
   }
-  const visible = () => state.spots.filter(passes);
+  const visible = () => {
+    const v = state.spots.filter(passes);
+    if (state.sortBy === 'best') v.sort((a, b) => bestScore(b) - bestScore(a) || a.dist - b.dist);
+    return v;
+  };
   const selectedSpot = () => state.spots.find(s => s.id === state.selected) || null;
 
   /* ---------- rendering ---------- */
@@ -2246,7 +2491,7 @@ function stampSVG(stamp, uid) {
     const z = map.getZoom();
     const solo = [], cells = new Map();
     for (const s of visible()) {
-      if (z > CLUSTER_MAX_ZOOM || s.id === state.selected || myRating(s.id) === 'lovely') { solo.push(s); continue; }
+      if (z > CLUSTER_MAX_ZOOM || s.id === state.selected || isLovely(scoreOf(s.id))) { solo.push(s); continue; }
       const p = map.project([s.lat, s.lon], z);
       const key = Math.floor(p.x / CLUSTER_CELL) + ',' + Math.floor(p.y / CLUSTER_CELL);
       if (!cells.has(key)) cells.set(key, []);
@@ -2265,15 +2510,15 @@ function stampSVG(stamp, uid) {
       }).addTo(markerLayer);
     }
     // Draw order puts liked and selected pins on top.
-    const rank = s => (s.id === state.selected ? 3 : POSITIVE.has(myRating(s.id)) ? 2 : NEGATIVE.has(myRating(s.id)) ? 0 : 1);
+    const rank = s => (s.id === state.selected ? 3 : isLovely(scoreOf(s.id)) ? 2 : isLow(myRating(s.id)) ? 0 : 1);
     solo.sort((a, b) => rank(a) - rank(b));
     for (const s of solo) {
-      const sel = s.id === state.selected, r = myRating(s.id), v = POSITIVE.has(r) ? 1 : NEGATIVE.has(r) ? -1 : 0;
+      const sel = s.id === state.selected, v = isLovely(scoreOf(s.id)) ? 1 : isLow(myRating(s.id)) ? -1 : 0;
       const group = s.members.length > 1;
       L.circleMarker([s.lat, s.lon], {
         radius: sel ? 10 : v === 1 ? 8 : v === -1 ? 5 : group ? 7 : 6,
-        color: sel ? ink : v === 1 ? like : s.added ? ink : paper,
-        weight: sel || v === 1 ? 3 : s.added ? 2 : 1.5,
+        color: sel ? ink : v === 1 ? like : s.added ? ink : promising(s) ? '#E0A526' : paper,
+        weight: sel || v === 1 ? 3 : s.added || promising(s) ? 2.5 : 1.5,
         fillColor: colorOf(s.kind),
         fillOpacity: v === -1 && !sel ? 0.35 : 0.95,
         dashArray: s.added && !sel && v !== 1 ? '3 3' : null,
@@ -2294,7 +2539,7 @@ function stampSVG(stamp, uid) {
     if (!total) text = `Nothing mapped within ${km(SEARCH_RADIUS)} of ${state.place}.`;
     else if (!v.length) text = 'No spots match these filters.';
     else {
-      const lovely = v.filter(s => myRating(s.id) === 'lovely').length;
+      const lovely = v.filter(s => isLovely(scoreOf(s.id))).length;
       text = `${v.length} ${v.length === 1 ? 'spot' : 'spots'} within ${km(SEARCH_RADIUS)} of ${state.place}${lovely ? `, ${lovely} lovely` : ''}.`;
     }
     if (state.pending) text += ' Still loading part of the area…';
@@ -2354,8 +2599,12 @@ function stampSVG(stamp, uid) {
     if (!v.length) {
       return '<div class="message"><p>No spots match these filters. Turn one off to see more.</p></div>';
     }
+    const sorter = `<div class="seg sorter" role="group" aria-label="Sort">
+        <button class="segbtn" type="button" data-act="sort" data-v="near" aria-pressed="${state.sortBy === 'near'}">Nearest</button>
+        <button class="segbtn" type="button" data-act="sort" data-v="best" aria-pressed="${state.sortBy === 'best'}">Best</button>
+      </div>`;
     const items = v.slice(0, state.shown).map(s => {
-      return `<li class="spot${NEGATIVE.has(myRating(s.id)) ? ' disliked' : ''}">
+      return `<li class="spot${isLow(myRating(s.id)) ? ' disliked' : ''}">
         <button class="spot-head" type="button" data-act="open" data-id="${esc(s.id)}">
           <span class="dot" style="--c:${colorOf(s.kind)}" aria-hidden="true"></span>
           <span class="spot-body">${summaryHTML(s.text, false)}</span>
@@ -2365,14 +2614,16 @@ function stampSVG(stamp, uid) {
     }).join('');
     const rest = v.length - state.shown;
     const more = rest > 0 ? `<button class="pill more" type="button" data-act="more">Show ${Math.min(PAGE, rest)} more</button>` : '';
-    return `<ul class="list">${items}</ul>${more}
+    return `${sorter}<ul class="list">${items}</ul>${more}
       <p class="note">Descriptions are estimated from OpenStreetMap data, so something missing from the map may still exist in real life.</p>`;
   }
 
   function visitTag(s) {
     const r = myRating(s.id);
-    if (r) return `<span class="tag ${r}">${ratingLabel(r)}</span>`;
-    return visited(s.id) ? '<span class="tag">Visited</span>' : '';
+    if (r === CLOSED) return '<span class="tag low">Closed</span>';
+    if (r) return `<span class="tag ${isLovely(r) ? 'lovely' : isNice(r) ? 'nice' : isLow(r) ? 'low' : ''}">${r}★ ${esc(ratingWord(r, s.kind))}</span>`;
+    if (visited(s.id)) return '<span class="tag">Visited</span>';
+    return promising(s) ? '<span class="tag promising">Looks promising</span>' : '';
   }
 
   function checkinHTML(s) {
@@ -2381,11 +2632,22 @@ function stampSVG(stamp, uid) {
     const rated = myRating(s.id);
     const been = visited(s.id);
     if (r && r.revisit) {
-      return `<div class="checkin"><p class="ck-lead">Saved: ${esc(ratingLabel(r.rating).toLowerCase())}. Thanks for keeping it up to date.</p></div>`;
+      return `<div class="checkin"><p class="ck-lead">Saved: ${esc(ratedText(r.rating, s.kind))}. Thanks for keeping it up to date.</p></div>`;
+    }
+    if (r && !companionOn()) {
+      const lines = [r.rating === CLOSED ? 'You marked it closed or locked.' : `You gave it ${ratedText(r.rating, s.kind)}.`];
+      if (r.stamp) lines.push(r.stamp.isNew ? `New passport stamp: ${r.stamp.label}.` : `Stamped in ${r.stamp.label}.`);
+      return `<div class="checkin">
+        <div class="reveal"><span class="snack calm" aria-hidden="true">★</span>
+          <span class="reveal-text"><strong>Thanks for rating!</strong>${lines.map(l => `<span>${esc(l)}</span>`).join('')}</span>
+        </div>
+        ${!toilet && typeof r.rating === 'number' && r.rating >= 4 ? '<div class="actions"><button type="button" class="plain" data-act="shareSpot">Share this spot</button></div>' : ''}
+        ${me.companion === null ? offerHTML() : ''}
+      </div>`;
     }
     if (r) {
       const name = (r.snack.rare ? 'golden ' : '') + r.snack.name;
-      const lines = [`You rated it ${ratingLabel(r.rating).toLowerCase()}.`];
+      const lines = [r.rating === CLOSED ? 'You marked it closed or locked.' : `You gave it ${ratedText(r.rating, s.kind)}.`];
       if (toilet) lines.push(`${cap(petName())} waited politely outside.`);
       if (r.snack.rare) lines.push(`Rare find! It counts as ${GAME.rareValue} snacks.`);
       if (r.streakBonus) lines.push('Your weekly streak continues: one extra snack.');
@@ -2397,23 +2659,28 @@ function stampSVG(stamp, uid) {
           <span class="reveal-text"><strong>${esc(cap(name))} for ${esc(petName())}!</strong>${lines.map(l => `<span>${esc(l)}</span>`).join('')}</span>
         </div>
         ${trinket ? `<p class="found"><span aria-hidden="true">✨</span> ${esc(cap(petName()))} found a trinket: ${esc(trinket.name)}! <button class="link-btn" type="button" data-act="openWardrobe">Put it on</button></p>` : ''}
+        ${bubble(voiceOf(me.raccoon, r.snack.rare ? 'golden' : trinket ? 'trinket' : isLovely(r.rating) ? 'lovely' : isLow(r.rating) ? 'low' : 'happy'))}
+        ${!toilet && typeof r.rating === 'number' && r.rating >= 4 ? '<div class="actions"><button type="button" class="plain" data-act="shareSpot">Share this spot</button></div>' : ''}
         ${!me.raccoon ? '<p class="found">Your raccoon doesn’t have a face yet. <button class="link-btn" type="button" data-act="openRaccoon">Choose one</button></p>' : ''}
       </div>`;
     }
     if (state.rateFor === s.id) {
       const q = been && rated ? stillQuestion(rated) : toilet ? 'How is this toilet?' : 'How is this spot?';
-      const opts = ratingsFor(s.kind);
       return `<div class="checkin">
         <p class="ck-lead rate-q">${esc(q)}</p>
-        <div class="rate-row${opts.length > 3 ? ' four' : ''}" role="group" aria-label="Your rating">${opts.map(([k, l]) =>
-          `<button class="ratebtn ${k}" type="button" data-act="rate" data-v="${k}" aria-pressed="${been && rated === k}">${l}</button>`).join('')}</div>
-        <p class="ck-msg">${been ? 'Snacks are only for new spots, but an up-to-date rating helps everyone find the best ones.' : `Rate it and ${esc(petName())} gets a snack.`}</p>
+        ${starsRow(s.kind, been ? rated : null, 'rate', false)}
+        <p class="ck-msg">${been
+          ? (companionOn() ? 'Snacks are only for new spots, but an up-to-date rating helps everyone find the best ones.' : 'An up-to-date rating helps everyone find the best spots.')
+          : (companionOn() ? `Rate it and ${esc(petName())} gets a snack.` : 'Your rating helps others find the best places to sit.')}</p>
       </div>`;
     }
     const last = lastVisit(s.id);
     const when = last ? new Date(last.t).toLocaleDateString(undefined, { day: 'numeric', month: 'short' }) : '';
-    const lead = !been ? (toilet ? 'Rate this toilet to help others, and your raccoon gets a snack while it waits outside.' : 'A snack is waiting for your first rating here.')
-      : rated ? `You rated this ${toilet ? 'toilet' : 'spot'} ${ratingLabel(rated).toLowerCase()} on ${when}. Check in again if something has changed.`
+    const lead = !been ? (toilet
+        ? (companionOn() ? 'Rate this toilet to help others, and your raccoon gets a snack while it waits outside.' : 'Rate this toilet to help others find a good one.')
+        : (companionOn() ? 'A snack is waiting for your first rating here.' : 'You haven’t rated this spot yet.'))
+      : rated === CLOSED ? `You marked this toilet closed on ${when}. Check in again if it has reopened.`
+      : rated ? `You gave this ${toilet ? 'toilet' : 'spot'} ${starText(rated)} (${ratingWord(rated, s.kind).toLowerCase()}) on ${when}. Check in again if something has changed.`
       : 'You’ve been here before. Check in to rate it.';
     return `<div class="checkin">
       <p class="ck-lead">${esc(lead)}</p>
@@ -2422,30 +2689,81 @@ function stampSVG(stamp, uid) {
     </div>`;
   }
 
+  // "4 stars, nice" or "closed or locked"
+  function ratedText(r, kind) {
+    return r === CLOSED ? 'closed or locked' : `${starText(r)}, ${ratingWord(r, kind).toLowerCase()}`;
+  }
+
+  // Five stars, each with its word underneath, so people see what a grade means before tapping.
+  function starsRow(kind, current, act, small) {
+    const cur = typeof current === 'number' ? current : 0;
+    let html = `<div class="stars${small ? ' small' : ''}" role="group" aria-label="Your rating">` +
+      starWords(kind).map((w, i) => {
+        const n = i + 1;
+        return `<button class="star${n <= cur ? ' on' : ''}" type="button" data-act="${act}" data-v="${n}" aria-pressed="${cur === n}" aria-label="${starText(n)}: ${esc(w)}">
+          <span class="glyph" aria-hidden="true">★</span><span class="word">${esc(w)}</span></button>`;
+      }).join('') + '</div>';
+    if (kind === 'toilet') html += `<button class="closedbtn" type="button" data-act="${act}" data-v="${CLOSED}" aria-pressed="${current === CLOSED}">Closed or locked</button>`;
+    return html;
+  }
+
+  // "What's good here?" One optional tap per tag, for a day after checking in.
+  function tagsHTML(s) {
+    if (s.kind === 'toilet' || myRating(s.id) == null || !canRerate(s.id) || state.rateFor === s.id) return '';
+    const mine = myTags(s.id);
+    return `<div class="rerate">
+      <p class="field-label">What’s good here?</p>
+      <div class="tagchips">${SPOT_TAGS.map(([k, l]) => `<button class="chip need" type="button" data-act="tag" data-v="${k}" aria-pressed="${mine.includes(k)}">${l}</button>`).join('')}</div>
+    </div>`;
+  }
+
+  // Offered once, after the first rating.
+  function offerHTML() {
+    return `<div class="offer">
+      <p class="offer-title">Want some company?</p>
+      <p class="fine">A raccoon can come along and collect crumbs from every new spot you rate. It grows rounder, finds trinkets, and has opinions about benches.</p>
+      <div class="actions"><button type="button" class="go" data-act="companionYes">Bring a raccoon</button><button type="button" class="plain" data-act="companionNo">No thanks</button></div>
+    </div>`;
+  }
+
+  // A line from your raccoon, in its own voice.
+  function bubble(text) {
+    if (!text || !me.raccoon || !companionOn()) return '';
+    return `<div class="bubble-line"><span class="bubble-face" aria-hidden="true">${raccoonSVG({ look: look(), mood: 'happy', viewBox: '58 30 104 84' })}</span><p class="speech">${esc(text)}</p></div>`;
+  }
+
   // For a day after checking in, the rating can still be changed (for a mis-tap).
   function rerateHTML(s) {
     const r = myRating(s.id);
     if (!r || !canRerate(s.id) || state.rateFor === s.id) return '';
-    const opts = ratingsFor(s.kind);
     return `<div class="rerate">
       <p class="field-label">Your rating</p>
-      <div class="rate-row small${opts.length > 3 ? ' four' : ''}" role="group" aria-label="Change your rating">${opts.map(([k, l]) =>
-        `<button class="ratebtn ${k}" type="button" data-act="rerate" data-v="${k}" aria-pressed="${r === k}">${l}</button>`).join('')}</div>
+      ${starsRow(s.kind, r, 'rerate', true)}
       <p class="fine">You can change it for ${GAME.rateWindowHours} hours after checking in.</p>
     </div>`;
   }
 
   /* ---------- raccoon panel: raccoon, wardrobe, passport ---------- */
   function raccoonHTML() {
-    if (!me.raccoon || state.picking) return pickHTML();
-    const tabs = [['raccoon', 'Raccoon'], ['wardrobe', 'Wardrobe'], ['passport', 'Passport'], ['rated', 'Rated']];
+    if (companionOn() && (!me.raccoon || state.picking)) return pickHTML();
+    const tabs = companionOn()
+      ? [['raccoon', 'Raccoon'], ['wardrobe', 'Wardrobe'], ['passport', 'Passport'], ['rated', 'Rated']]
+      : [['rated', 'Rated'], ['passport', 'Passport']];
+    if (!tabs.some(t => t[0] === state.rtab)) state.rtab = tabs[0][0];
     const body = state.rtab === 'wardrobe' ? wardrobeHTML() : state.rtab === 'passport' ? passportHTML()
       : state.rtab === 'rated' ? ratedHTML() : raccoonTabHTML();
     return `<div class="detail">
       <div class="detail-nav"><button class="link-btn" type="button" data-act="back">Back to list</button></div>
-      <div class="tabs" role="tablist" aria-label="Your raccoon">${tabs.map(([k, l]) =>
+      <div class="tabs" role="tablist" aria-label="Your spots">${tabs.map(([k, l]) =>
         `<button type="button" role="tab" class="tab" data-act="rtab" data-v="${k}" aria-selected="${state.rtab === k}">${l}</button>`).join('')}</div>
       ${body}
+      <div class="settings">
+        <p class="rc-section">Settings</p>
+        <div class="setting-row"><span>Raccoon companion</span>
+          <button type="button" class="toggle" data-act="companion" aria-pressed="${companionOn()}">${companionOn() ? 'On' : 'Off'}</button></div>
+        <div class="actions reset"><button type="button" class="plain" data-act="showIntro">Show the intro again</button><button type="button" class="plain" data-act="reset">Start fresh</button></div>
+        <p class="fine">Start fresh clears your ratings, pins and stamps${companionOn() ? ', and your raccoon,' : ''} on this phone.</p>
+      </div>
     </div>`;
   }
 
@@ -2481,17 +2799,17 @@ function stampSVG(stamp, uid) {
           </li>`;
         }).join('')}</ul>`
       : '<p class="fine">No snacks yet. Find a bench, check in, and your raccoon gets its first meal.</p>';
-    return `<div class="raccoon-art">${art()}</div>
+    return `${bubble(voiceOf(me.raccoon, mood.key === 'hungry' || mood.key === 'peckish' ? 'hungry' : 'happy'))}
+      <div class="raccoon-art">${art()}</div>
       <div class="rc-head"><h2 class="rc-name">${esc(cap(petName()))}</h2><button class="link-btn" type="button" data-act="rename">Rename</button></div>
       <p class="rc-line">${esc(st.label)}. ${esc(mood.label)}.</p>
       <p class="rc-line quiet">${me.total} ${me.total === 1 ? 'snack' : 'snacks'} eaten at ${spots} ${spots === 1 ? 'spot' : 'spots'}${me.rares ? `, ${me.rares} golden` : ''}. ${progress}</p>
       <p class="rc-line quiet">${esc(streakLine)}</p>
-      <p class="rc-line"><button class="link-btn" type="button" data-act="openPick">Switch raccoon</button></p>
+      <p class="rc-line"><button class="link-btn" type="button" data-act="openPick">Switch raccoon</button> <button class="link-btn" type="button" data-act="shareRaccoon">Share</button></p>
       <p class="rc-section">Recent snacks</p>
       ${log}
       <p class="fine">Check in within ${GAME.checkinRadius} m of a spot and rate it. The first time you rate a spot, your raccoon gets ${GAME.newSpotValue} snacks, and ${GAME.toiletValue} for a toilet. About 1 in ${GAME.rareOneIn} is golden and counts as ${GAME.rareValue}, and about 1 in ${GAME.trinketOneIn} new spots hides a trinket. Coming back lets you update your rating, without a snack, so the best spots stay up to date.${TEST ? ' Test mode is on, so your location isn’t checked.' : ''}</p>
-      <div class="actions reset"><button type="button" class="plain" data-act="reset">Start fresh</button></div>
-      <p class="fine">Start fresh clears your raccoon, snacks, ratings, pins and stamps on this phone.</p>`;
+`;
   }
 
   function wardrobeHTML() {
@@ -2522,6 +2840,7 @@ function stampSVG(stamp, uid) {
     if (unplaced) notes.push(`${plural(unplaced, 'early check-in has', 'early check-ins have')} no saved location yet and will get ${unplaced === 1 ? 'its stamp' : 'their stamps'} next time that area is on the map.`);
     return `<p class="rc-line quiet passport-intro">${esc(summary)}${notes.length ? ' ' + esc(notes.join(' ')) : ''}</p>
       ${pp.map(c => `<p class="rc-section">${esc(c.country)}</p>
+        ${progressHTML(c)}
         <div class="stamps">${c.stamps.map((st, i) => `<div class="stamp">${stampSVG(st, 'st' + hash32(c.country + st.label) + '_' + i)}</div>`).join('')}</div>`).join('')}
       ${seats.length ? '<div class="actions"><button type="button" class="go" data-act="showVisited">Show my spots on the map</button></div>' : ''}`;
   }
@@ -2542,17 +2861,19 @@ function stampSVG(stamp, uid) {
 
   function ratedHTML() {
     const want = state.rateTab;
+    const band = r => (r === 5 ? 'lovely' : r === 4 ? 'nice' : 'other');
     const ref = state.user || state.center;
     const all = ratedEntries();
-    const count = k => all.filter(x => x.last.rating === k).length;
-    const list = all.filter(x => x.last.rating === want).map(x => {
+    const count = k => all.filter(x => band(x.last.rating) === k).length;
+    const list = all.filter(x => band(x.last.rating) === want).map(x => {
       const live = state.spots.find(s => s.members.some(mb => x.keys.has(mb.id))) || nearestSpot(x.lat, x.lon, GROUP_RADIUS);
       const visit = me.visits.filter(e => e.place && (x.keys.has(e.spot || e.id) || (e.lat != null && metres(e.lat, e.lon, x.lat, x.lon) <= 25)))
         .sort((a, b) => b.t - a.t)[0];
       return {
         lat: x.lat, lon: x.lon, live,
         kind: live ? live.kind : x.last.kind || 'bench',
-        text: live ? live.text.sentence : x.last.where || `A spot you rated ${ratingLabel(want).toLowerCase()}.`,
+        stars: x.last.rating,
+        text: live ? live.text.sentence : x.last.where || `A spot you gave ${starText(x.last.rating)}.`,
         place: visit ? stampLabel(visit.place)
           : me.visits.some(e => x.keys.has(e.spot || e.id)) ? '' : 'No check-in here, so no stamp',
         d: ref ? metres(ref.lat, ref.lon, x.lat, x.lon) : 0,
@@ -2564,14 +2885,33 @@ function stampSVG(stamp, uid) {
         <button class="spot-head" type="button" data-act="openVoted" data-i="${i}">
           <span class="dot" style="--c:${colorOf(x.kind)}" aria-hidden="true"></span>
           <span class="spot-body"><span class="sentence">${esc(x.text)}</span>${x.place ? `<span class="comfort">${esc(x.place)}</span>` : ''}</span>
-          <span class="dist">${ref ? fmtDist(x.d) : ''}</span>
+          <span class="dist">${ref ? fmtDist(x.d) : ''}<span class="tag">${x.stars}★</span></span>
         </button>
       </li>`).join('');
-    const empty = { lovely: 'No lovely spots yet. Check in at a spot and rate it to keep it here.', okay: 'No spots rated okay.', notgreat: 'No spots rated not great.' }[want];
-    return `<div class="seg voted-switch" role="group" aria-label="Show">${RATINGS.map(([k, l]) => seg(k, l)).join('')}</div>
+    const empty = { lovely: 'No 5-star spots yet. Check in at a spot and rate it to keep it here.', nice: 'No 4-star spots yet.', other: 'No spots rated 3 stars or lower.' }[want];
+    return `<div class="seg voted-switch" role="group" aria-label="Show">${seg('lovely', 'Lovely')}${seg('nice', 'Nice')}${seg('other', 'Other')}</div>
       ${list.length
         ? `<p class="rc-line quiet passport-intro">Every spot you’ve rated, nearest first${state.user ? '' : ' from the map centre'}. Tap one to open it on the map.</p><ul class="list voted">${items}</ul>`
         : `<p class="fine">${empty}</p>`}`;
+  }
+
+  // "Zürich: 3 of 34 neighbourhoods", for towns where stamps are per neighbourhood or district.
+  function progressHTML(country) {
+    const towns = new Map();
+    for (const st of country.stamps) {
+      if (!st.district) continue;
+      if (!towns.has(st.town)) towns.set(st.town, 0);
+      towns.set(st.town, towns.get(st.town) + 1);
+    }
+    if (!towns.size) return '';
+    const rows = [...towns].map(([town, n]) => {
+      const info = subareaInfo(country.country, town);
+      const word = info && info.level === 9 ? 'districts' : 'neighbourhoods';
+      if (!info || !info.count) return `<p class="progress-row"><span>${esc(town)}: ${n} ${n === 1 ? word.slice(0, -1) : word} so far</span></p>`;
+      const pct = Math.min(100, Math.round(n / info.count * 100));
+      return `<div class="progress-row"><span>${esc(town)}: ${n} of ${info.count} ${word}</span><span class="bar"><span style="width:${pct}%"></span></span></div>`;
+    }).join('');
+    return `<div class="progress">${rows}</div>`;
   }
 
   function pickHTML() {
@@ -2601,7 +2941,7 @@ function stampSVG(stamp, uid) {
         <div class="detail-nav"><button class="link-btn" type="button" data-act="back">Back to list</button></div>
         <div class="checkin rare"><div class="reveal"><span class="snack" aria-hidden="true">📍</span>
           <span class="reveal-text"><strong>New ${a.kind === 'table' ? 'picnic table' : 'bench'} added!</strong>
-          <span>${esc(cap(petName()))} gets ${GAME.addReward} snacks and has now eaten ${me.total}.</span></span></div></div>
+          <span>${companionOn() ? `${esc(cap(petName()))} gets ${GAME.addReward} snacks and has now eaten ${me.total}.` : 'Thanks for putting it on the map.'}</span></span></div></div>
         <p class="fine">The pin is saved on this phone for now. Telling OpenStreetMap about it puts it on the map for everyone.</p>
         <div class="actions">
           <button type="button" class="go" data-act="openAdded">Open it</button>
@@ -2623,13 +2963,13 @@ function stampSVG(stamp, uid) {
     return `<div class="detail">
       <div class="detail-nav"><button class="link-btn" type="button" data-act="back">Back to list</button></div>
       <h2 class="add-title">Add a missing bench</h2>
-      <p class="fine">Stand next to it and tap Add. A pin appears where you’re standing, and you can then drag it onto the exact spot. ${esc(cap(petName()))} gets ${GAME.addReward} snacks.</p>
+      <p class="fine">Stand next to it and tap Add. A pin appears where you’re standing, and you can then drag it onto the exact spot.${companionOn() ? ` ${esc(cap(petName()))} gets ${GAME.addReward} snacks.` : ''}</p>
       <p class="field-label">What is it?</p>
       <div class="seg" role="group" aria-label="Type">${seg('addKind', 'bench', 'Bench', a.kind)}${seg('addKind', 'table', 'Picnic table', a.kind)}</div>
       ${a.kind === 'bench' ? `<p class="field-label">Does it have a backrest?</p>
       <div class="seg" role="group" aria-label="Backrest">${seg('addBack', 'yes', 'Yes', a.backrest)}${seg('addBack', 'no', 'No', a.backrest)}${seg('addBack', '', 'Not sure', a.backrest)}</div>` : ''}
       <p class="field-label">How is it?</p>
-      <div class="seg" role="group" aria-label="Your rating">${RATINGS.map(([k, l]) => seg('addRate', k, l, a.rating)).join('')}</div>
+      ${starsRow(a.kind, a.rating || null, 'addRate', true)}
       <button class="ck-btn" type="button" data-act="addHere"${a.busy || left <= 0 || !a.rating ? ' disabled' : ''}>${a.busy ? 'Checking your location…' : a.rating ? 'Add it here' : 'Choose a rating first'}</button>
       <p class="ck-msg">${esc(a.msg || (left <= 0 ? `That’s ${GAME.addsPerDay} new pins today, the daily limit. Come back tomorrow.` : `${left} of ${GAME.addsPerDay} new pins left today.${TEST ? ' Test mode: the pin goes at the map centre.' : ''}`))}</p>
       ${a.near ? '<div class="actions"><button type="button" class="plain" data-act="openNear">Open the mapped one</button></div>' : ''}
@@ -2647,10 +2987,14 @@ function stampSVG(stamp, uid) {
       </div>
       <p class="kind"><span class="dot" style="--c:${colorOf(s.kind)}" aria-hidden="true"></span>${s.members.length > 1 ? `${s.members.length} seats in one spot` : KIND_LABEL[s.kind]}${s.added ? ', added by you' : ''}</p>
       ${summaryHTML(s.text, true)}
+      ${promising(s) ? '<p class="promise-line">Looks promising from its surroundings. Nobody has rated it yet, so be the first.</p>' : ''}
+      ${myTags(s.id).length ? `<p class="comfort">You noted: ${esc(myTags(s.id).map(tagLabel).join(', ').toLowerCase())}.</p>` : ''}
       ${checkinHTML(s)}
       ${rerateHTML(s)}
+      ${tagsHTML(s)}
       <div class="actions">
         <a class="go" href="${dir}" target="_blank" rel="noopener">Directions</a>
+        ${typeof myRating(s.id) === 'number' && s.kind !== 'toilet' ? '<button type="button" class="plain" data-act="shareSpot">Share</button>' : ''}
         ${s.added
           ? `<a href="${gone}" target="_blank" rel="noopener">Tell OpenStreetMap</a>
              <button type="button" class="plain" data-act="removeAdded">Remove my pin</button>`
@@ -2661,6 +3005,174 @@ function stampSVG(stamp, uid) {
         <dl class="measured">${rows}</dl>
       </details>
     </div>`;
+  }
+
+  /* ---------- intro: three short screens on first open ---------- */
+  const INTRO_KEY = 'sitwell.intro.v1';
+  const benchArt = `<svg viewBox="0 0 200 140" role="img" aria-label="A bench under a tree">
+    <circle cx="160" cy="34" r="16" fill="#F2C94C"/>
+    <rect x="34" y="40" width="10" height="70" rx="3" fill="#8A6A56"/>
+    <circle cx="39" cy="34" r="30" fill="#6F9E6B"/><circle cx="20" cy="48" r="18" fill="#7FB07A"/><circle cx="58" cy="50" r="18" fill="#7FB07A"/>
+    <rect x="72" y="70" width="96" height="9" rx="3" fill="#A0672E"/>
+    <rect x="72" y="83" width="96" height="9" rx="3" fill="#A0672E"/>
+    <rect x="70" y="96" width="100" height="8" rx="3" fill="#8A5524"/>
+    <rect x="80" y="104" width="6" height="22" rx="2" fill="#4A3B30"/><rect x="154" y="104" width="6" height="22" rx="2" fill="#4A3B30"/>
+    <path d="M10 126 H190" stroke="#B7C9A8" stroke-width="4" stroke-linecap="round"/>
+  </svg>`;
+  const starsArt = `<svg viewBox="0 0 200 140" role="img" aria-label="Five stars">${[0, 1, 2, 3, 4].map(i =>
+    `<text x="${24 + i * 38}" y="88" font-size="40" text-anchor="middle" fill="${i < 4 ? '#E0A526' : '#E2DDD3'}">★</text>`).join('')}
+    <text x="100" y="120" font-size="14" text-anchor="middle" fill="#5E5950" font-family="IBM Plex Sans, Helvetica, sans-serif">4 stars: nice</text></svg>`;
+  const mapArt = `<svg viewBox="0 0 200 140" role="img" aria-label="A map with a few spots, one of them loved">
+    <rect x="16" y="14" width="168" height="112" rx="14" fill="#E9EFE2"/>
+    <path d="M16 92 C60 80 90 104 130 88 S184 70 184 70 V126 H16 Z" fill="#CFE3EE"/>
+    <path d="M40 14 C52 50 70 60 92 126" stroke="#FFFFFF" stroke-width="7" fill="none"/>
+    <circle cx="64" cy="48" r="7" fill="#2F5E43" stroke="#FFFFFF" stroke-width="2"/>
+    <circle cx="146" cy="44" r="7" fill="#2F5E43" stroke="#FFFFFF" stroke-width="2"/>
+    <circle cx="112" cy="80" r="11" fill="#2F5E43" stroke="#C4476A" stroke-width="4"/>
+    <circle cx="84" cy="102" r="6" fill="#A0672E" stroke="#FFFFFF" stroke-width="2" opacity=".5"/>
+  </svg>`;
+  const INTRO = [
+    { title: 'Find a good place to sit', text: 'Sitwell shows benches, picnic tables and toilets nearby, and what’s around them: water, shade, a view, or a busy road.', art: () => benchArt },
+    { title: 'See which spots people love', text: 'Every spot is rated by people who actually sat there. Look for Lovely and Nice, or try a spot that looks promising and nobody has rated yet.', art: () => mapArt },
+    { title: 'Rate it when you’re there', text: 'Check in and give it stars. Every rating helps someone else find their perfect bench.', art: () => starsArt },
+  ];
+  function openIntro() {
+    state.intro = 1;
+    renderIntro();
+  }
+  function closeIntro(thenPick) {
+    state.intro = 0;
+    try { localStorage.setItem(INTRO_KEY, '1'); } catch (e) { /* ignore */ }
+    $('#intro').hidden = true;
+    if (thenPick && !me.raccoon) {
+      state.selected = null;
+      state.rtab = 'raccoon';
+      setMode('raccoon');
+      renderMarkers();
+    }
+  }
+  function renderIntro() {
+    const box = $('#intro');
+    if (!state.intro) { box.hidden = true; return; }
+    const i = state.intro - 1, step = INTRO[i], last = i === INTRO.length - 1;
+    box.hidden = false;
+    box.innerHTML = `<div class="intro-card" role="dialog" aria-modal="true" aria-labelledby="introTitle">
+      <div class="intro-art">${step.art()}</div>
+      <h2 id="introTitle" class="intro-title">${esc(step.title)}</h2>
+      <p class="intro-text">${esc(step.text)}</p>
+      <div class="intro-dots" aria-hidden="true">${INTRO.map((_, k) => `<span class="${k === i ? 'on' : ''}"></span>`).join('')}</div>
+      <div class="intro-actions">
+        <button type="button" class="link-btn" data-intro="skip">${last ? 'Close' : 'Skip'}</button>
+        <button type="button" class="ck-btn" data-intro="next">${last ? 'Start exploring' : 'Next'}</button>
+      </div>
+    </div>`;
+    box.querySelector('[data-intro="next"]').focus();
+  }
+  $('#intro').addEventListener('click', e => {
+    const b = e.target.closest('[data-intro]');
+    if (!b) return;
+    if (b.dataset.intro === 'skip') { closeIntro(false); return; }
+    if (state.intro >= INTRO.length) { closeIntro(false); return; }
+    state.intro += 1;
+    renderIntro();
+  });
+
+  /* ---------- share cards: a picture of a spot or of your raccoon ---------- */
+  function svgImage(svg, w, h) {
+    const src = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(svg.replace('<svg ', `<svg xmlns="http://www.w3.org/2000/svg" width="${w}" height="${h}" `));
+    return new Promise((res, rej) => {
+      const img = new Image();
+      const timer = setTimeout(() => rej(new Error('image took too long')), 4000);
+      img.onload = () => { clearTimeout(timer); res(img); };
+      img.onerror = e => { clearTimeout(timer); rej(e); };
+      img.src = src;
+    });
+  }
+  function wrapText(ctx, text, maxW) {
+    const words = text.split(' '), lines = [];
+    let line = '';
+    for (const w of words) {
+      const test = line ? line + ' ' + w : w;
+      if (ctx.measureText(test).width > maxW && line) { lines.push(line); line = w; } else line = test;
+    }
+    if (line) lines.push(line);
+    return lines;
+  }
+  async function shareCard(kind, s) {
+    const W = 1080, H = 1350;
+    const cv = document.createElement('canvas');
+    cv.width = W; cv.height = H;
+    const ctx = cv.getContext('2d');
+    try { await document.fonts.load('500 64px "IBM Plex Serif"'); await document.fonts.load('500 36px "IBM Plex Sans"'); } catch (e) { /* fallback fonts */ }
+    ctx.fillStyle = '#F6F4EF';
+    ctx.fillRect(0, 0, W, H);
+    ctx.fillStyle = '#FFFFFF';
+    ctx.beginPath(); ctx.roundRect ? ctx.roundRect(60, 60, W - 120, H - 120, 48) : ctx.rect(60, 60, W - 120, H - 120); ctx.fill();
+    const st = stageOf(me.total);
+    let holding = '';
+    if (kind === 'spot') { const v = visitsOf(s.id).filter(e => e.emoji).sort((a, b) => b.t - a.t)[0]; holding = v ? v.emoji : ''; }
+    try {
+      const pic = companionOn() && me.raccoon ? raccoonSVG({ look: look(), mood: 'happy', holding, worn: me.worn, scale: st.scale }) : benchArt;
+      const img = await svgImage(pic, 560, companionOn() && me.raccoon ? 509 : 392);
+      ctx.drawImage(img, (W - 560) / 2, companionOn() && me.raccoon ? 110 : 170, 560, companionOn() && me.raccoon ? 509 : 392);
+    } catch (e) { /* draw without the picture */ }
+    ctx.textAlign = 'center';
+    ctx.fillStyle = '#23211D';
+    let y = 690;
+    if (kind === 'spot') {
+      const r = myRating(s.id);
+      ctx.font = '72px "IBM Plex Serif", Georgia, serif';
+      ctx.fillStyle = '#E0A526';
+      ctx.fillText('★★★★★'.slice(0, r) + '☆☆☆☆☆'.slice(0, 5 - r), W / 2, y);
+      y += 80;
+      ctx.fillStyle = '#23211D';
+      ctx.font = '500 56px "IBM Plex Serif", Georgia, serif';
+      for (const line of wrapText(ctx, s.text.sentence, W - 240).slice(0, 4)) { ctx.fillText(line, W / 2, y); y += 70; }
+      const visit = visitsOf(s.id).find(e => e.place);
+      const tags = myTags(s.id).map(tagLabel).join(', ');
+      ctx.font = '36px "IBM Plex Sans", Helvetica, sans-serif';
+      ctx.fillStyle = '#5E5950';
+      y += 10;
+      if (visit) { ctx.fillText(stampLabel(visit.place), W / 2, y); y += 52; }
+      if (tags) { ctx.fillText(tags, W / 2, y); y += 52; }
+      ctx.fillText(`${companionOn() && me.raccoon ? cap(petName()) + ' rated' : 'Rated'} it ${starText(r)}: ${ratingWord(r, s.kind).toLowerCase()}`, W / 2, Math.max(y + 10, 1130));
+    } else {
+      const stamps = passportOf(me.visits).reduce((n, c) => n + c.stamps.length, 0);
+      const spots = new Set(me.visits.map(e => e.spot || e.id)).size;
+      ctx.font = '500 72px "IBM Plex Serif", Georgia, serif';
+      ctx.fillText(cap(petName()), W / 2, y + 20);
+      ctx.font = '40px "IBM Plex Sans", Helvetica, sans-serif';
+      ctx.fillStyle = '#5E5950';
+      ctx.fillText(`${st.label}, ${me.total} snacks eaten`, W / 2, y + 100);
+      ctx.fillText(`${spots} ${spots === 1 ? 'spot' : 'spots'} rated, ${stamps} passport ${stamps === 1 ? 'stamp' : 'stamps'}`, W / 2, y + 160);
+      const line = voiceOf(me.raccoon, 'happy');
+      ctx.font = 'italic 40px "IBM Plex Serif", Georgia, serif';
+      ctx.fillStyle = '#23211D';
+      let yy = y + 260;
+      for (const l of wrapText(ctx, `“${line}”`, W - 280)) { ctx.fillText(l, W / 2, yy); yy += 54; }
+    }
+    ctx.font = '600 40px "IBM Plex Sans", Helvetica, sans-serif';
+    ctx.fillStyle = '#2F5E43';
+    ctx.fillText('Sitwell', W / 2, H - 120);
+    const blob = await new Promise(res => cv.toBlob(res, 'image/png'));
+    if (!blob) return;
+    const file = new File([blob], kind === 'spot' ? 'sitwell-spot.png' : 'sitwell-raccoon.png', { type: 'image/png' });
+    try {
+      if (navigator.canShare && navigator.canShare({ files: [file] })) {
+        await navigator.share({ files: [file], title: 'Sitwell' });
+        return;
+      }
+    } catch (e) {
+      if (e && e.name === 'AbortError') return;
+    }
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = file.name;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 30000);
   }
 
   /* ---------- interaction ---------- */
@@ -2945,7 +3457,7 @@ function stampSVG(stamp, uid) {
       state.add.backrest = el.dataset.v;
       renderPanel();
     } else if (act === 'addRate') {
-      state.add.rating = el.dataset.v;
+      state.add.rating = Number(el.dataset.v);
       renderPanel();
     } else if (act === 'addHere') {
       addHere();
@@ -3009,6 +3521,40 @@ function stampSVG(stamp, uid) {
       const top = $('#panelBody').scrollTop;
       renderPanel();
       $('#panelBody').scrollTop = top;
+    } else if (act === 'companionYes' || (act === 'companion' && !companionOn())) {
+      record({ type: 'companion', t: Date.now(), on: true });
+      state.selected = null;
+      state.reveal = null;
+      state.picking = !!me.raccoon ? false : true;
+      state.rtab = 'raccoon';
+      setMode('raccoon');
+      renderMarkers();
+      $('#panelBody').scrollTop = 0;
+    } else if (act === 'companionNo' || act === 'companion') {
+      record({ type: 'companion', t: Date.now(), on: false });
+      state.rtab = 'rated';
+      renderPanel();
+      renderMarkers();
+    } else if (act === 'sort') {
+      state.sortBy = el.dataset.v;
+      state.shown = PAGE;
+      renderPanel();
+    } else if (act === 'tag') {
+      const s = selectedSpot();
+      if (!s || !canRerate(s.id)) return;
+      const cur = new Set(myTags(s.id));
+      if (cur.has(el.dataset.v)) cur.delete(el.dataset.v); else cur.add(el.dataset.v);
+      record({ type: 'tags', t: Date.now(), spot: s.id, lat: +s.lat.toFixed(6), lon: +s.lon.toFixed(6), tags: [...cur] });
+      const top = $('#panelBody').scrollTop;
+      renderPanel();
+      $('#panelBody').scrollTop = top;
+    } else if (act === 'shareSpot') {
+      const s = selectedSpot();
+      if (s) shareCard('spot', s);
+    } else if (act === 'shareRaccoon') {
+      shareCard('raccoon');
+    } else if (act === 'showIntro') {
+      openIntro();
     } else if (act === 'rateTab') {
       state.rateTab = el.dataset.v;
       renderPanel();
@@ -3043,12 +3589,13 @@ function stampSVG(stamp, uid) {
     } else if (act === 'rate') {
       const s = selectedSpot();
       if (!s || state.rateFor !== s.id) return;
-      saveRating(s, el.dataset.v);
+      saveRating(s, toNum(el.dataset.v));
     } else if (act === 'rerate') {
       const s = selectedSpot();
       if (!s || !canRerate(s.id)) return;
-      record({ type: 'rate', t: Date.now(), spot: s.id, lat: +s.lat.toFixed(6), lon: +s.lon.toFixed(6), rating: el.dataset.v, where: s.text.sentence, kind: s.kind });
-      if (state.reveal && state.reveal.id === s.id) state.reveal.rating = el.dataset.v;
+      const rating = toNum(el.dataset.v);
+      record({ type: 'rate', t: Date.now(), spot: s.id, lat: +s.lat.toFixed(6), lon: +s.lon.toFixed(6), rating, where: s.text.sentence, kind: s.kind });
+      if (state.reveal && state.reveal.id === s.id) state.reveal.rating = rating;
       const top = $('#panelBody').scrollTop;
       renderPanel();
       renderMarkers();
@@ -3092,6 +3639,7 @@ function stampSVG(stamp, uid) {
   }));
 
   document.addEventListener('keydown', e => {
+    if (e.key === 'Escape' && state.intro) { closeIntro(false); return; }
     if (e.key === 'Escape' && ['detail', 'raccoon', 'add'].includes(state.mode)) closeOverlay();
   });
 
@@ -3111,7 +3659,7 @@ function stampSVG(stamp, uid) {
     state.reveal = null;
     state.picking = false;
     state.pickSel = null;
-    state.rtab = 'raccoon';
+    state.rtab = companionOn() ? 'raccoon' : 'rated';
     setMode('raccoon');
     renderMarkers();
     $('#panelBody').scrollTop = 0;
@@ -3161,6 +3709,7 @@ function stampSVG(stamp, uid) {
 
   $('#locate').addEventListener('click', () => locate(false));
   locate(true);
+  try { if (!localStorage.getItem(INTRO_KEY)) openIntro(); } catch (e) { /* ignore */ }
 })();
 </script>
 </body>
